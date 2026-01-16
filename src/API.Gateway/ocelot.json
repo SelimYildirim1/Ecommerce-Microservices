@@ -1,0 +1,81 @@
+{
+    "Routes": [
+      {
+        "DownstreamPathTemplate": "/api/products",
+        "DownstreamScheme": "http",
+        "DownstreamHostAndPorts": [
+          {
+            "Host": "localhost",
+            "Port": 5024
+          }
+        ],
+        "UpstreamPathTemplate": "/catalog/products",
+        "UpstreamHttpMethod": [ "GET", "POST", "PUT" ]
+      },
+      {
+        "DownstreamPathTemplate": "/api/products/{id}",
+        "DownstreamScheme": "http",
+        "DownstreamHostAndPorts": [
+          {
+            "Host": "localhost",
+            "Port": 5024
+          }
+        ],
+        "UpstreamPathTemplate": "/catalog/products/{id}",
+        "UpstreamHttpMethod": [ "GET", "DELETE" ]
+      },
+  
+      {
+        "DownstreamPathTemplate": "/api/basket/{userName}",
+        "DownstreamScheme": "http",
+        "DownstreamHostAndPorts": [
+          {
+            "Host": "localhost",
+            "Port": 5038
+          }
+        ],
+        "UpstreamPathTemplate": "/basket/{userName}",
+        "UpstreamHttpMethod": [ "GET", "DELETE" ]
+      },
+      {
+        "DownstreamPathTemplate": "/api/basket",
+        "DownstreamScheme": "http",
+        "DownstreamHostAndPorts": [
+          {
+            "Host": "localhost",
+            "Port": 5038
+          }
+        ],
+        "UpstreamPathTemplate": "/basket",
+        "UpstreamHttpMethod": [ "POST" ]
+      },
+      {
+        "DownstreamPathTemplate": "/api/basket/checkout",
+        "DownstreamScheme": "http",
+        "DownstreamHostAndPorts": [
+          {
+            "Host": "localhost",
+            "Port": 5038
+          }
+        ],
+        "UpstreamPathTemplate": "/basket/checkout",
+        "UpstreamHttpMethod": [ "POST" ]
+      },
+  
+      {
+        "DownstreamPathTemplate": "/api/orders",
+        "DownstreamScheme": "http",
+        "DownstreamHostAndPorts": [
+          {
+            "Host": "localhost",
+            "Port": 5059
+          }
+        ],
+        "UpstreamPathTemplate": "/ordering",
+        "UpstreamHttpMethod": [ "GET" ]
+      }
+    ],
+    "GlobalConfiguration": {
+      "BaseUrl": "http://localhost:8000"
+    }
+  }

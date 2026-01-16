@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/API.Gateway/API.Gateway.csproj" />
+  </Folder>
+  <Folder Name="/src/BuildingBlocks/">
+    <Project Path="src/BuildingBlocks/Core.Shared/Core.Shared.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/">
+    <Project Path="src/Services/Basket.API/Basket.API.csproj" />
+    <Project Path="src/Services/Order.API/Order.API.csproj" />
+  </Folder>
+</Solution>
