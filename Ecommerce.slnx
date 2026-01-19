@@ -7,6 +7,7 @@
   </Folder>
   <Folder Name="/src/Services/">
     <Project Path="src/Services/Basket.API/Basket.API.csproj" />
+    <Project Path="src/Services/Identity.API/Identity.API.csproj" />
     <Project Path="src/Services/Order.API/Order.API.csproj" />
   </Folder>
 </Solution>
