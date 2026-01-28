@@ -1,45 +1,89 @@
 using MassTransit;
 using Core.Shared.Events;
 using Order.API.Data;
-using OrderEntity = Order.API.Entities.Order; // İsim çakışmasını önlemek için
+using Order.API.Entities;
+using OrderEntity = Order.API.Entities.Order;
 
 namespace Order.API.Consumers;
 
 public class BasketCheckoutConsumer : IConsumer<BasketCheckoutEvent>
 {
-    private readonly OrderDbContext _context;
+    private readonly OrderDbContext _dbContext;
     private readonly ILogger<BasketCheckoutConsumer> _logger;
+    private readonly IPublishEndpoint _publishEndpoint;
 
-    public BasketCheckoutConsumer(OrderDbContext context, ILogger<BasketCheckoutConsumer> logger)
+    public BasketCheckoutConsumer(
+        OrderDbContext dbContext,
+        ILogger<BasketCheckoutConsumer> logger,
+        IPublishEndpoint publishEndpoint)
     {
-        _context = context;
+        _dbContext = dbContext;
         _logger = logger;
+        _publishEndpoint = publishEndpoint;
     }
 
     public async Task Consume(ConsumeContext<BasketCheckoutEvent> context)
     {
-        // 1. Gelen mesajı oku
-        var eventData = context.Message;
-        
-        _logger.LogInformation("Yeni Sipariş Mesajı Geldi! Kullanıcı: {UserName}", eventData.UserName);
+        var msg = context.Message;
+        _logger.LogInformation("Yeni sipariş mesajı geldi. Kullanıcı={UserName}, CardName={CardName}",
+            msg.UserName, msg.CardName);
 
-        // 2. Sipariş nesnesini oluştur
-        var newOrder = new OrderEntity
+        var order = new OrderEntity
         {
-            Id = Guid.NewGuid(),
-            UserName = eventData.UserName,
-            TotalPrice = eventData.TotalPrice,
-            FirstName = eventData.FirstName,
-            LastName = eventData.LastName,
-            EmailAddress = eventData.EmailAddress,
-            AddressLine = eventData.AddressLine,
+            UserName = msg.UserName,
+            TotalPrice = msg.TotalPrice,
+            FirstName = msg.FirstName,
+            LastName = msg.LastName,
+            EmailAddress = msg.EmailAddress,
+            AddressLine = msg.AddressLine,
             CreatedDate = DateTime.UtcNow
         };
 
-        // 3. Veritabanına kaydet
-        _context.Orders.Add(newOrder);
-        await _context.SaveChangesAsync();
+        if (msg.BasketItems != null && msg.BasketItems.Count > 0)
+        {
+            foreach (var item in msg.BasketItems)
+            {
+                if (string.IsNullOrEmpty(item.ProductId) || !Guid.TryParse(item.ProductId, out var productId))
+                {
+                    _logger.LogWarning("Geçersiz ProductId atlanıyor: {ProductId}", item.ProductId ?? "(null)");
+                    continue;
+                }
+                order.OrderItems.Add(new OrderItem
+                {
+                    ProductId = productId,
+                    ProductName = item.ProductName ?? "-",
+                    Price = item.Price,
+                    Quantity = item.Quantity
+                });
+            }
+        }
 
-        _logger.LogInformation("Sipariş başarıyla veritabanına kaydedildi. ID: {Id}", newOrder.Id);
+        _dbContext.Orders.Add(order);
+        await _dbContext.SaveChangesAsync();
+
+        _logger.LogInformation("Sipariş kaydedildi. OrderId={OrderId}, ItemCount={Count}", order.Id, order.OrderItems.Count);
+
+        var orderCreatedEvent = new OrderCreatedEvent
+        {
+            OrderId = order.Id,
+            BuyerId = order.UserName,
+            Email = order.EmailAddress,
+            TotalPrice = order.TotalPrice,
+            CardName = msg.CardName,
+            CardNumber = msg.CardNumber,
+            Expiration = msg.Expiration,
+            CVV = msg.CVV,
+            OrderItems = order.OrderItems.Select(i => new OrderItemMessage
+            {
+                ProductId = i.ProductId.ToString(),
+                ProductName = i.ProductName,
+                PictureUrl = null,
+                Price = i.Price,
+                Quantity = i.Quantity
+            }).ToList()
+        };
+
+        await _publishEndpoint.Publish(orderCreatedEvent);
+        _logger.LogInformation("OrderCreatedEvent yayımlandı. OrderId={OrderId}. Payment ve Catalog dinliyor.", order.Id);
     }
 }

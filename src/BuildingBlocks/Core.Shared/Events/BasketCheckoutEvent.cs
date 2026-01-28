@@ -1,17 +1,21 @@
 namespace Core.Shared.Events;
 
-public interface BasketCheckoutEvent
+// Interface değil, CLASS olmalı!
+public class BasketCheckoutEvent
 {
-    string UserName { get; set; }
-    decimal TotalPrice { get; set; }
+    public string UserName { get; set; } = default!;
+    public decimal TotalPrice { get; set; }
+    public string FirstName { get; set; } = default!;
+    public string LastName { get; set; } = default!;
+    public string EmailAddress { get; set; } = default!;
+    public string AddressLine { get; set; } = default!;
     
-    // Adres Bilgileri
-    string FirstName { get; set; }
-    string LastName { get; set; }
-    string EmailAddress { get; set; }
-    string AddressLine { get; set; }
-    
-    // Basitlik olsun diye şimdilik ürün detaylarını bu evente koymuyoruz.
-    // Gerçek hayat senaryosunda Order servisi Redis'e gidip detayları alabilir
-    // veya bu event içinde liste olarak taşıyabiliriz.
+    // Kart Bilgileri
+    public string CardName { get; set; } = default!;
+    public string CardNumber { get; set; } = default!;
+    public string Expiration { get; set; } = default!;
+    public string CVV { get; set; } = default!;
+
+    // Başlatıcı burada sorun çıkarmaz çünkü bu bir CLASS
+    public List<OrderItemMessage> BasketItems { get; set; } = new();
 }

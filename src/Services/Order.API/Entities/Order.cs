@@ -15,6 +15,9 @@ public class Order
     // Sipariş Tarihi
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
 
+    // Sipariş Durumu (Submitted, Paid, Cancelled vb.)
+    public string OrderStatus { get; set; } = "Submitted";
+
     // Siparişin İçindeki Ürünler (İlişki)
     public List<OrderItem> OrderItems { get; set; } = new();
 }

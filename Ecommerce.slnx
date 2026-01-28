@@ -9,5 +9,6 @@
     <Project Path="src/Services/Basket.API/Basket.API.csproj" />
     <Project Path="src/Services/Identity.API/Identity.API.csproj" />
     <Project Path="src/Services/Order.API/Order.API.csproj" />
+    <Project Path="src/Services/Payment.API/Payment.API.csproj" />
   </Folder>
 </Solution>

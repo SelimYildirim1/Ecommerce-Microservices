@@ -1,5 +1,7 @@
 using MassTransit;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Order.API.Consumers; // Consumer'ın olduğu yer
 using Order.API.Data;
 
@@ -20,20 +22,34 @@ builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Progr
 // 4. MassTransit (RabbitMQ) - TEK VE DOĞRU OLAN BLOK
 builder.Services.AddMassTransit(config =>
 {
-    // A) Consumer'ı (Dinleyiciyi) Tanıt
+    // A) Consumer'ları (Dinleyicileri) Tanıt
     config.AddConsumer<BasketCheckoutConsumer>();
+    config.AddConsumer<PaymentSucceededConsumer>();
 
     // B) RabbitMQ Bağlantısı
     config.UsingRabbitMq((context, _config) =>
     {
-        _config.Host("localhost", "/", h =>
+        // Configuration'dan RabbitMQ hostname'ini oku
+        // Docker: RabbitMQ__HostName=rabbitmq (environment variable)
+        // Local: appsettings.json'dan EventBusSettings:HostAddress veya varsayılan localhost
+        var rabbitMqHost = builder.Configuration["RabbitMQ:HostName"] 
+            ?? builder.Configuration["EventBusSettings:HostAddress"]?.Replace("amqp://guest:guest@", "").Split(':')[0]
+            ?? "localhost";
+
+        _config.Host(rabbitMqHost, "/", h =>
         {
             h.Username("guest");
             h.Password("guest");
         });
 
-        // C) Kuyruk Ayarları (Otomatik endpoint yapılandırması)
-        // Bu satır olmazsa Consumer çalışmaz!
+        // C) Kuyruk Ayarları
+        // PaymentSucceededEvent için özel endpoint
+        _config.ReceiveEndpoint("order-payment-succeeded-queue", e =>
+        {
+            e.ConfigureConsumer<PaymentSucceededConsumer>(context);
+        });
+        
+        // Diğer consumer'lar için otomatik endpoint
         _config.ConfigureEndpoints(context);
     });
 });

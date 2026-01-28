@@ -1,5 +1,9 @@
 using Basket.API.Repositories;
+using Basket.API.Services;
 using MassTransit;
+using Microsoft.Extensions.DependencyInjection;
+using Swashbuckle.AspNetCore;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,13 +22,33 @@ builder.Services.AddStackExchangeRedisCache(options =>
 // B) Repository Entegrasyonu
 builder.Services.AddScoped<IBasketRepository, BasketRepository>();
 
+// --- CATALOG API İLE İLETİŞİM ---
+
+// Docker: Services__CatalogApi=http://catalog-api:8080 (env'den gelir)
+// Local:  appsettings.Development veya appsettings'te Services:CatalogApi
+var catalogBaseUrl = builder.Configuration["Services:CatalogApi"]
+    ?? builder.Configuration["GrpcSettings:CatalogUrl"]
+    ?? "http://localhost:5000";
+
+builder.Services.AddHttpClient<CatalogService>(client =>
+{
+    client.BaseAddress = new Uri(catalogBaseUrl);
+});
+
 // C) MassTransit (RabbitMQ) Entegrasyonu
 // (Şimdilik sadece ayar yapıyoruz, ileride "Sipariş Oluştu" mesajı atacağız)
 builder.Services.AddMassTransit(config =>
 {
     config.UsingRabbitMq((context, _config) =>
     {
-        _config.Host("localhost", "/", h =>
+        // Configuration'dan RabbitMQ hostname'ini oku
+        // Docker: RabbitMQ__HostName=rabbitmq (environment variable)
+        // Local: appsettings.json'dan EventBusSettings:HostAddress veya varsayılan localhost
+        var rabbitMqHost = builder.Configuration["RabbitMQ:HostName"] 
+            ?? builder.Configuration["EventBusSettings:HostAddress"]?.Replace("amqp://guest:guest@", "").Split(':')[0]
+            ?? "localhost";
+
+        _config.Host(rabbitMqHost, "/", h =>
         {
             h.Username("guest");
             h.Password("guest");

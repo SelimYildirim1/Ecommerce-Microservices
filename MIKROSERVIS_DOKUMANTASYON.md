@@ -1,7 +1,7 @@
 # 🚀 E-Commerce Mikroservis Mimarisi - Kapsamlı Dokümantasyon
 
-> **Versiyon:** 1.0  
-> **Son Güncelleme:** 14 Ocak 2026  
+> **Versiyon:** 1.1  
+> **Son Güncelleme:** 15 Ocak 2026  
 > **Hazırlayan:** AI Assistant  
 > **Amaç:** Mikroservis mimarisini öğrenmek ve projeyi başkalarına anlatabilmek
 
@@ -65,14 +65,14 @@
 
 **Mikroservis Yaklaşım (Bu Proje):**
 ```
-┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│   Catalog    │    │    Basket    │    │    Order     │
-│   Service    │    │   Service    │    │   Service    │
-│              │    │              │    │              │
-│  PostgreSQL  │    │    Redis     │    │  PostgreSQL  │
-└──────┬───────┘    └──────┬───────┘    └──────┬───────┘
-       │                   │                   │
-       └───────────────────┴───────────────────┘
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│   Catalog    │    │    Basket    │    │    Order     │    │   Payment    │
+│   Service    │    │   Service    │    │   Service    │    │   Service    │
+│              │    │              │    │              │    │              │
+│  PostgreSQL  │    │    Redis     │    │  PostgreSQL  │    │   (Event    │
+└──────┬───────┘    └──────┬───────┘    └──────┬───────┘    │   Listener)  │
+       │                   │                   │            └──────┬───────┘
+       └───────────────────┴───────────────────┴───────────────────┘
                           │
                    ┌──────▼───────┐
                    │   RabbitMQ   │
@@ -101,7 +101,8 @@ ecommerce/
 │   ├── Services/               # Mikroservisler
 │   │   ├── Catalog.API/        # Ürün Kataloğu Servisi
 │   │   ├── Basket.API/         # Sepet Servisi
-│   │   └── Order.API/          # Sipariş Servisi
+│   │   ├── Order.API/          # Sipariş Servisi
+│   │   └── Payment.API/        # Ödeme Servisi
 │   │
 │   └── Clients/                # Frontend (ileride eklenecek)
 │
@@ -216,6 +217,10 @@ public record GetProductsQuery() : IRequest<IEnumerable<ProductDto>>;
 
 2. Order Service bu mesajı dinler
    └──> Sipariş oluşturulur ve veritabanına kaydedilir
+   └──> OrderCreatedEvent mesajı RabbitMQ'ya gönderilir
+
+3. Payment Service OrderCreatedEvent'i dinler
+   └──> Ödeme işlemi gerçekleştirilir
 ```
 
 ### 🗂️ Repository Pattern
@@ -365,7 +370,7 @@ Value: {
 **Görevleri:**
 - Basket servisinden gelen checkout mesajlarını dinleme
 - Sipariş oluşturma ve kaydetme
-- Sipariş geçmişi
+- Sipariş oluştuktan sonra Payment servisine bildirim gönderme
 
 **Veritabanı:** PostgreSQL (OrderDB)
 
@@ -374,12 +379,13 @@ Value: {
 
 **Kullandığı Teknolojiler:**
 - Entity Framework Core (ORM)
-- MassTransit (Event Consuming)
+- MassTransit (Event Consuming + Publishing)
 - MediatR (CQRS - ileride eklenecek)
 
 **Önemli Özellikler:**
 - `BasketCheckoutConsumer` sınıfı RabbitMQ'yu dinler
 - Mesaj geldiğinde otomatik sipariş oluşturur
+- Sipariş oluştuktan sonra `OrderCreatedEvent` yayınlar
 - Veritabanına migration otomatik uygulanır (Program.cs'de)
 
 **Veri Modeli:**
@@ -407,10 +413,47 @@ public class OrderItem
 }
 ```
 
+### 💳 Payment.API (Ödeme Servisi)
+
+**Görevleri:**
+- Order servisinden gelen sipariş mesajlarını dinleme
+- Ödeme işlemini gerçekleştirme (simülasyon)
+- Ödeme sonucunu loglama
+
+**Veritabanı:** (Şu anda yok, sadece event dinliyor)
+
+**Endpoint'ler:**
+- (Şu anda endpoint yok, sadece RabbitMQ mesajı dinliyor)
+
+**Kullandığı Teknolojiler:**
+- MassTransit (Event Consuming)
+- Logger (Ödeme işlemlerini loglama)
+
+**Önemli Özellikler:**
+- `OrderCreatedConsumer` sınıfı RabbitMQ'yu dinler
+- `order-created-queue` kuyruğundan mesaj alır
+- Ödeme işlemini simüle eder (3 saniye bekleme)
+- Ödeme başarı/hata durumunu loglar
+
+**Veri Modeli:**
+```csharp
+// Order.API'den gelen mesaj
+public class OrderCreatedEvent
+{
+    public Guid OrderId { get; set; }
+    public string BuyerId { get; set; }
+    public decimal TotalPrice { get; set; }
+    public string CardName { get; set; }
+    public string CardNumber { get; set; }
+    public string Expiration { get; set; }
+    public string CVV { get; set; }
+}
+```
+
 ### 🏗️ Core.Shared (Ortak Kütüphane)
 
 **İçeriği:**
-- **Events:** RabbitMQ mesaj şablonları (interface'ler)
+- **Events:** RabbitMQ mesaj şablonları (interface'ler ve somut sınıflar)
 - **Behaviors:** MediatR Pipeline (ValidationBehavior)
 
 **Neden Ayrı Proje?**
@@ -420,13 +463,26 @@ public class OrderItem
 
 **Event'ler:**
 ```csharp
-// Sepet onaylandığında gönderilen mesaj
+// Sepet onaylandığında gönderilen mesaj (Interface)
 public interface BasketCheckoutEvent
 {
     string UserName { get; set; }
     decimal TotalPrice { get; set; }
     string FirstName { get; set; }
-    // ... diğer adres bilgileri
+    string LastName { get; set; }
+    string EmailAddress { get; set; }
+    string AddressLine { get; set; }
+    // Kart bilgileri (Payment için)
+    string CardName { get; set; }
+    string CardNumber { get; set; }
+    string Expiration { get; set; }
+    string CVV { get; set; }
+}
+
+// Somut sınıf (MassTransit uyumluluğu için)
+public class BasketCheckoutEventMessage : BasketCheckoutEvent
+{
+    // Tüm property'ler burada implement edilir
 }
 
 // Yeni ürün eklendiğinde gönderilen mesaj
@@ -572,12 +628,17 @@ var data = await _redisCache.GetStringAsync("ahmet");
 MassTransit otomatik olarak şunları oluşturur:
 - Exchange: `Core.Shared.Events:BasketCheckoutEvent`
 - Queue: `Order.API_BasketCheckoutConsumer`
+- Exchange: `Payment.API.Messages:OrderCreatedEvent`
+- Queue: `order-created-queue` (Payment.API için özel tanımlı)
 
 **Mesaj Akışı:**
 ```
-1. Basket.API → Publish → RabbitMQ Exchange
+1. Basket.API → Publish → RabbitMQ Exchange (BasketCheckoutEvent)
 2. RabbitMQ → Queue'ya mesaj koyar
 3. Order.API → Consume → Queue'dan mesaj alır
+4. Order.API → Publish → RabbitMQ Exchange (OrderCreatedEvent)
+5. RabbitMQ → Payment queue'ya mesaj koyar
+6. Payment.API → Consume → Queue'dan mesaj alır
 ```
 
 **MassTransit Konfigürasyonu:**
@@ -722,7 +783,11 @@ Bu senaryo, **mikroservis iletişiminin** tam olarak gösterildiği yerdir.
      "firstName": "Ahmet",
      "lastName": "Yılmaz",
      "emailAddress": "ahmet@example.com",
-     "addressLine": "İstanbul, Türkiye"
+     "addressLine": "İstanbul, Türkiye",
+     "cardName": "Ahmet Yılmaz",
+     "cardNumber": "1234567890123456",
+     "expiration": "12/25",
+     "cvv": "123"
    }
    ```
 
@@ -735,17 +800,24 @@ Bu senaryo, **mikroservis iletişiminin** tam olarak gösterildiği yerdir.
        // 1. Sepeti Redis'ten getir
        var basket = await _repository.GetBasket(basketCheckout.UserName);
        
-       // 2. Event mesajı oluştur
-       var eventMessage = new 
+       // 2. Event mesajı oluştur (somut sınıf kullanıyoruz)
+       var eventMessage = new BasketCheckoutEventMessage
        {
            UserName = basketCheckout.UserName,
            TotalPrice = basket.TotalPrice,
            FirstName = basketCheckout.FirstName,
-           // ...
+           LastName = basketCheckout.LastName,
+           EmailAddress = basketCheckout.EmailAddress,
+           AddressLine = basketCheckout.AddressLine,
+           // Kart bilgileri
+           CardName = basketCheckout.CardName,
+           CardNumber = basketCheckout.CardNumber,
+           Expiration = basketCheckout.Expiration,
+           CVV = basketCheckout.CVV
        };
        
        // 3. RabbitMQ'ya mesaj gönder
-       await _publishEndpoint.Publish<BasketCheckoutEvent>(eventMessage);
+       await _publishEndpoint.Publish(eventMessage);
        
        // 4. Sepeti temizle
        await _repository.DeleteBasket(basketCheckout.UserName);
@@ -774,11 +846,29 @@ Bu senaryo, **mikroservis iletişiminin** tam olarak gösterildiği yerdir.
            Id = Guid.NewGuid(),
            UserName = eventData.UserName,
            TotalPrice = eventData.TotalPrice,
-           // ...
+           FirstName = eventData.FirstName,
+           LastName = eventData.LastName,
+           EmailAddress = eventData.EmailAddress,
+           AddressLine = eventData.AddressLine,
+           CreatedDate = DateTime.UtcNow
        };
        
        _context.Orders.Add(newOrder);
        await _context.SaveChangesAsync();
+       
+       // 6. Payment servisine bildirim gönder
+       var orderCreatedEvent = new OrderCreatedEvent
+       {
+           OrderId = newOrder.Id,
+           BuyerId = newOrder.UserName,
+           TotalPrice = newOrder.TotalPrice,
+           CardName = eventData.CardName,
+           CardNumber = eventData.CardNumber,
+           Expiration = eventData.Expiration,
+           CVV = eventData.CVV
+       };
+       
+       await _publishEndpoint.Publish(orderCreatedEvent);
        
        _logger.LogInformation("Sipariş oluşturuldu: {Id}", newOrder.Id);
    }
@@ -787,13 +877,45 @@ Bu senaryo, **mikroservis iletişiminin** tam olarak gösterildiği yerdir.
 6. **Order.API → PostgreSQL**
    - Sipariş Orders tablosuna kaydedilir
 
+7. **Order.API → RabbitMQ**
+   - `OrderCreatedEvent` mesajı RabbitMQ'ya gönderilir
+   - Payment servisi bu mesajı dinler
+
+8. **Payment.API → OrderCreatedConsumer**
+   ```csharp
+   public async Task Consume(ConsumeContext<OrderCreatedEvent> context)
+   {
+       var message = context.Message;
+       
+       _logger.LogInformation("ÖDEME İŞLEMİ BAŞLADI");
+       _logger.LogInformation($"Sipariş ID: {message.OrderId} | Tutar: {message.TotalPrice} TL");
+       _logger.LogInformation($"Kart Sahibi: {message.CardName}");
+       
+       // Banka simülasyonu (3 saniye bekleme)
+       await Task.Delay(3000);
+       
+       // Ödeme kontrolü
+       bool isPaymentSuccess = message.TotalPrice > 0;
+       
+       if (isPaymentSuccess)
+       {
+           _logger.LogInformation("✅ ÖDEME BAŞARIYLA ALINDI!");
+       }
+       else
+       {
+           _logger.LogError("❌ ÖDEME BAŞARISIZ!");
+       }
+   }
+   ```
+
 **Sonuç:**
 - ✅ Sepet Redis'ten silindi
 - ✅ Sipariş PostgreSQL'e kaydedildi
-- ✅ Basket ve Order servisleri birbirini tanımıyor (loose coupling)
+- ✅ Payment servisi ödeme işlemini gerçekleştirdi
+- ✅ Basket, Order ve Payment servisleri birbirini tanımıyor (loose coupling)
 - ✅ Asenkron işlem (kullanıcı hemen cevap aldı)
 
-**Kritik Nokta:** Basket.API, Order.API'yi tanımıyor! Sadece RabbitMQ'ya mesaj attı. Yarın yeni bir servis (örn: EmailService) eklerseniz, o da bu mesajı dinleyebilir. **Bu mikroservis mimarisinin gücüdür!**
+**Kritik Nokta:** Her servis sadece kendi görevine odaklanıyor! Basket → Order → Payment zinciri tamamen event-driven. Yarın yeni bir servis (örn: EmailService) eklerseniz, sadece ilgili event'i dinlemeye başlar. **Bu mikroservis mimarisinin gücüdür!**
 
 ---
 
@@ -810,7 +932,7 @@ Bu senaryo, **mikroservis iletişiminin** tam olarak gösterildiği yerdir.
 ┌──────────────────────┐
 │   Basket.API         │
 │                      │
-│ 1. Redis'ten sepeti  │
+│ 1. Redis'ten sepeti   │
 │    getir             │
 │ 2. Event mesajı      │
 │    oluştur           │
@@ -832,9 +954,32 @@ Bu senaryo, **mikroservis iletişiminin** tam olarak gösterildiği yerdir.
 │   Order.API          │
 │                      │
 │ BasketCheckoutConsumer│
-│ 1. Mesajı al        │
-│ 2. Order oluştur    │
+│ 1. Mesajı al         │
+│ 2. Order oluştur     │
 │ 3. PostgreSQL'e kaydet│
+│ 4. OrderCreatedEvent │
+│    gönder             │
+└──────┬───────────────┘
+       │
+       │ Publish<OrderCreatedEvent>
+       ▼
+┌──────────────────────┐
+│     RabbitMQ         │
+│                      │
+│  Exchange → Queue    │
+│  (order-created-queue)│
+└──────┬───────────────┘
+       │
+       │ Consume (Otomatik)
+       ▼
+┌──────────────────────┐
+│   Payment.API        │
+│                      │
+│ OrderCreatedConsumer │
+│ 1. Mesajı al         │
+│ 2. Ödeme işlemi      │
+│    (simülasyon)       │
+│ 3. Sonucu logla      │
 └──────────────────────┘
 ```
 
@@ -1090,19 +1235,23 @@ public class BasketController : ControllerBase
         if (basket == null)
             return BadRequest("Sepet bulunamadı!");
 
-        // 2. Event mesajını oluştur
-        var eventMessage = new 
+        // 2. Event mesajını oluştur (somut sınıf kullanıyoruz)
+        var eventMessage = new BasketCheckoutEventMessage
         {
             UserName = basketCheckout.UserName,
             TotalPrice = basket.TotalPrice,
             FirstName = basketCheckout.FirstName,
             LastName = basketCheckout.LastName,
             EmailAddress = basketCheckout.EmailAddress,
-            AddressLine = basketCheckout.AddressLine
+            AddressLine = basketCheckout.AddressLine,
+            CardName = basketCheckout.CardName,
+            CardNumber = basketCheckout.CardNumber,
+            Expiration = basketCheckout.Expiration,
+            CVV = basketCheckout.CVV
         };
 
         // 3. RabbitMQ'ya gönder
-        await _publishEndpoint.Publish<BasketCheckoutEvent>(eventMessage);
+        await _publishEndpoint.Publish(eventMessage);
 
         // 4. Sepeti temizle
         await _repository.DeleteBasket(basketCheckout.UserName);
@@ -1207,16 +1356,96 @@ builder.Services.AddMassTransit(config =>
 
 ---
 
+### 💳 Payment.API Kod Yapısı
+
+**Klasör Yapısı:**
+```
+Payment.API/
+├── Consumers/
+│   └── OrderCreatedConsumer.cs   # RabbitMQ mesaj dinleyici
+├── Messages/
+│   └── OrderCreatedEvent.cs      # Sipariş oluşturuldu event'i
+├── Program.cs
+└── appsettings.json
+```
+
+**Önemli Kod Parçaları:**
+
+#### OrderCreatedConsumer.cs (Event Listener)
+```csharp
+public class OrderCreatedConsumer : IConsumer<OrderCreatedEvent>
+{
+    private readonly ILogger<OrderCreatedConsumer> _logger;
+
+    public OrderCreatedConsumer(ILogger<OrderCreatedConsumer> logger)
+    {
+        _logger = logger;
+    }
+
+    public async Task Consume(ConsumeContext<OrderCreatedEvent> context)
+    {
+        var message = context.Message;
+        
+        _logger.LogInformation("--- ÖDEME İŞLEMİ BAŞLADI ---");
+        _logger.LogInformation($"Sipariş ID: {message.OrderId} | Tutar: {message.TotalPrice} TL");
+        _logger.LogInformation($"Kart Sahibi: {message.CardName}");
+
+        // Banka simülasyonu (3 saniye bekleyelim)
+        await Task.Delay(3000); 
+
+        // Basit bir kural: Tutar negatif değilse ödeme başarılı
+        bool isPaymentSuccess = message.TotalPrice > 0;
+
+        if (isPaymentSuccess)
+        {
+            _logger.LogInformation("✅ ÖDEME BAŞARIYLA ALINDI! Bankadan onay geldi.");
+        }
+        else
+        {
+            _logger.LogError("❌ ÖDEME BAŞARISIZ! Bakiye yetersiz.");
+        }
+    }
+}
+```
+
+#### Program.cs (Consumer Kaydı)
+```csharp
+builder.Services.AddMassTransit(config =>
+{
+    // Consumer'ı tanıt
+    config.AddConsumer<OrderCreatedConsumer>();
+
+    config.UsingRabbitMq((ctx, cfg) =>
+    {
+        cfg.Host("amqp://guest:guest@localhost:5672");
+
+        // Özel queue adı tanımla
+        cfg.ReceiveEndpoint("order-created-queue", c =>
+        {
+            c.ConfigureConsumer<OrderCreatedConsumer>(ctx);
+        });
+    });
+});
+```
+
+**Kritik Nokta:**
+- Payment.API, `order-created-queue` adında özel bir queue kullanıyor
+- Order.API'den gelen `OrderCreatedEvent` mesajlarını dinliyor
+- Ödeme işlemini simüle ediyor (gerçek banka entegrasyonu ileride eklenecek)
+
+---
+
 ### 🏗️ Core.Shared Kod Yapısı
 
 **Klasör Yapısı:**
 ```
 Core.Shared/
 ├── Events/
-│   ├── BasketCheckoutEvent.cs     # Sepet onay event'i
-│   └── ProductCreatedEvent.cs     # Ürün oluşturma event'i
+│   ├── BasketCheckoutEvent.cs         # Sepet onay event'i (interface)
+│   ├── BasketCheckoutEventMessage.cs  # Sepet onay event'i (somut sınıf)
+│   └── ProductCreatedEvent.cs        # Ürün oluşturma event'i
 └── Behaviors/
-    └── ValidationBehavior.cs       # MediatR Pipeline
+    └── ValidationBehavior.cs           # MediatR Pipeline
 ```
 
 #### ValidationBehavior.cs (Otomatik Doğrulama)
@@ -1331,6 +1560,10 @@ dotnet run
 # Terminal 3 - Order.API
 cd src/Services/Order.API
 dotnet run
+
+# Terminal 4 - Payment.API
+cd src/Services/Payment.API
+dotnet run
 ```
 
 **Yöntem 2: Visual Studio / Rider**
@@ -1344,6 +1577,7 @@ Tarayıcıda şu URL'leri aç:
 - Catalog API: http://localhost:5171/swagger
 - Basket API: http://localhost:5172/swagger
 - Order API: http://localhost:5173/swagger
+- Payment API: http://localhost:5174/swagger
 
 **Not:** Port numaraları `launchSettings.json` dosyasında tanımlanmıştır.
 
@@ -1439,7 +1673,7 @@ Content-Type: application/json
 GET http://localhost:5172/api/basket/ahmet
 ```
 
-#### Test 5: Sepeti Onayla (Sipariş Oluştur)
+#### Test 5: Sepeti Onayla (Sipariş Oluştur ve Ödeme)
 
 ```http
 POST http://localhost:5172/api/basket/checkout
@@ -1450,13 +1684,21 @@ Content-Type: application/json
   "firstName": "Ahmet",
   "lastName": "Yılmaz",
   "emailAddress": "ahmet@example.com",
-  "addressLine": "İstanbul, Türkiye"
+  "addressLine": "İstanbul, Türkiye",
+  "cardName": "Ahmet Yılmaz",
+  "cardNumber": "1234567890123456",
+  "expiration": "12/25",
+  "cvv": "123"
 }
 ```
 
 **Beklenen Sonuç:**
 - HTTP Status: 202 Accepted
 - Order.API loglarında "Yeni Sipariş Mesajı Geldi!" yazısı
+- Order.API loglarında "OrderCreatedEvent fırlatıldı!" yazısı
+- Payment.API loglarında "ÖDEME İŞLEMİ BAŞLADI" yazısı
+- Payment.API loglarında "Kart Sahibi: Ahmet Yılmaz" yazısı
+- Payment.API loglarında "✅ ÖDEME BAŞARIYLA ALINDI!" yazısı
 - OrderDB'de yeni sipariş kaydı
 
 #### Test 6: Sipariş Kontrolü
@@ -1656,6 +1898,13 @@ Bu proje eğitim amaçlıdır. İyileştirme önerileri için:
 ---
 
 ## 📝 Değişiklik Geçmişi
+
+### Versiyon 1.1 (15 Ocak 2026)
+- ✅ Payment.API servisi eklendi
+- ✅ Order.API'den Payment.API'ye event akışı kuruldu
+- ✅ BasketCheckoutEvent'e kart bilgileri eklendi
+- ✅ BasketCheckoutEventMessage somut sınıfı oluşturuldu (MassTransit uyumluluğu)
+- ✅ Ödeme işlemi simülasyonu eklendi
 
 ### Versiyon 1.0 (14 Ocak 2026)
 - ✅ İlk mikroservis mimarisi kuruldu

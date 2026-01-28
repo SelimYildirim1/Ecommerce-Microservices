@@ -1,5 +1,6 @@
 using Catalog.API.Products.CreateProduct;
-using Catalog.API.Products.GetProducts; // <-- BU SATIR EKSİK
+using Catalog.API.Products.GetProducts;
+using Catalog.API.Products.GetProductById;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
@@ -26,7 +27,21 @@ public class ProductsController : ControllerBase
         return Ok(result); // Geriye yeni ürünün ID'si döner.
     }
 
-    // MEVCUT KODLARIN ALTINA EKLE...
+    // ÖNEMLİ: Spesifik route'lar genel route'lardan ÖNCE olmalı!
+    // Bu yüzden [HttpGet("{id}")] route'u [HttpGet] route'undan ÖNCE geliyor.
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetProductById(Guid id)
+    {
+        // ID'ye göre ürün getir
+        var result = await _mediator.Send(new GetProductByIdQuery(id));
+
+        if (result == null)
+        {
+            return NotFound($"Ürün bulunamadı. ID: {id}");
+        }
+
+        return Ok(result);
+    }
 
     [HttpGet]
     public async Task<IActionResult> GetProducts()

@@ -3,47 +3,98 @@
     {
       "DownstreamPathTemplate": "/api/products",
       "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [ { "Host": "localhost", "Port": 5024 } ],
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "catalog-api",
+          "Port": 8080
+        }
+      ],
       "UpstreamPathTemplate": "/catalog/products",
       "UpstreamHttpMethod": [ "GET", "POST", "PUT" ]
     },
     {
+      "DownstreamPathTemplate": "/api/products/{id}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "catalog-api",
+          "Port": 8080
+        }
+      ],
+      "UpstreamPathTemplate": "/catalog/products/{id}",
+      "UpstreamHttpMethod": [ "GET" ]
+    },
+
+    {
       "DownstreamPathTemplate": "/api/basket/{userName}",
       "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [ { "Host": "localhost", "Port": 5038 } ],
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "basket-api",
+          "Port": 8080
+        }
+      ],
       "UpstreamPathTemplate": "/basket/{userName}",
-      "UpstreamHttpMethod": [ "GET", "DELETE" ],
-      
-      "AuthenticationOptions": {
-        "AuthenticationProviderKey": "Bearer",
-        "AllowedScopes": []
-      }
+      "UpstreamHttpMethod": [ "GET", "DELETE" ]
     },
     {
       "DownstreamPathTemplate": "/api/basket",
       "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [ { "Host": "localhost", "Port": 5038 } ],
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "basket-api",
+          "Port": 8080
+        }
+      ],
       "UpstreamPathTemplate": "/basket",
+      "UpstreamHttpMethod": [ "POST" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/basket/checkout",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "basket-api",
+          "Port": 8080
+        }
+      ],
+      "UpstreamPathTemplate": "/basket/checkout",
       "UpstreamHttpMethod": [ "POST" ],
-      
       "AuthenticationOptions": {
         "AuthenticationProviderKey": "Bearer",
         "AllowedScopes": []
       }
     },
-    {
-      "DownstreamPathTemplate": "/api/basket/checkout",
-      "DownstreamScheme": "http",
-      "DownstreamHostAndPorts": [ { "Host": "localhost", "Port": 5038 } ],
-      "UpstreamPathTemplate": "/basket/checkout",
-      "UpstreamHttpMethod": [ "POST" ],
 
+    {
+      "DownstreamPathTemplate": "/api/orders/{userName}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "order-api",
+          "Port": 8080
+        }
+      ],
+      "UpstreamPathTemplate": "/orders/{userName}",
+      "UpstreamHttpMethod": [ "GET" ],
       "AuthenticationOptions": {
         "AuthenticationProviderKey": "Bearer",
         "AllowedScopes": []
       }
+    },
+
+    {
+      "DownstreamPathTemplate": "/api/auth/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "identity-api",
+          "Port": 8080
+        }
+      ],
+      "UpstreamPathTemplate": "/auth/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST" ]
     }
-    
   ],
   "GlobalConfiguration": {
     "BaseUrl": "http://localhost:8000"

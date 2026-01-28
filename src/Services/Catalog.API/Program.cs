@@ -1,8 +1,10 @@
 using Catalog.API.Data;
+using Catalog.API.Consumers;
 using Microsoft.EntityFrameworkCore;
-using Core.Shared.Behaviors; // Bunu eklemeyi unutma
-using FluentValidation;      // Bunu eklemeyi unutma
+using Core.Shared.Behaviors;
+using FluentValidation;
 using MassTransit;
+using Microsoft.Extensions.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,21 +38,62 @@ builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
 builder.Services.AddMassTransit(config =>
 {
-    // RabbitMQ Kullanacağımızı Söylüyoruz
-    config.UsingRabbitMq((context, _config) =>
+    config.AddConsumer<OrderCreatedConsumer>();
+
+    config.UsingRabbitMq((ctx, _config) =>
     {
-        // Docker'daki RabbitMQ adresimiz
-        // Eğer Docker'da kullanıcı adı şifre değiştirdiysen burayı güncelle
-        _config.Host("localhost", "/", h =>
+        var rabbitMqHost = builder.Configuration["RabbitMQ:HostName"] ?? "rabbitmq";
+        _config.Host(rabbitMqHost, "/", h =>
         {
             h.Username("guest");
             h.Password("guest");
+        });
+        
+        // Stok düşürme için OrderCreatedEvent'i dinliyoruz
+        _config.ReceiveEndpoint("catalog-stock-update-queue", e =>
+        {
+            e.ConfigureConsumer<OrderCreatedConsumer>(ctx);
         });
     });
 });
 
 // --- SERVİSLER BİTTİ, UYGULAMA İNŞA EDİLİYOR ---
 var app = builder.Build();
+
+// --- VERİTABANI MİGRATİON'LARINI OTOMATİK ÇALIŞTIR ---
+// PostgreSQL hazır olana kadar dene; Migrate() tabloları oluşturur, varsa dokunmaz (veriler korunur).
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    var logger = services.GetRequiredService<ILogger<Program>>();
+    var context = services.GetRequiredService<CatalogDbContext>();
+    const int maxRetries = 10;
+    var delay = TimeSpan.FromSeconds(3);
+
+    for (int i = 1; i <= maxRetries; i++)
+    {
+        try
+        {
+            context.Database.Migrate();
+            logger.LogInformation("Veritabanı migration tamamlandı.");
+
+            // Tek seferlik: Products tablosu boşsa 50 örnek ürün ekle. Doluysa dokunma.
+            CatalogDbSeeder.SeedAsync(context, logger, force: false).GetAwaiter().GetResult();
+
+            break;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Migration denemesi {Attempt}/{Max} başarısız. {Delay}s sonra tekrar denenecek.", i, maxRetries, delay.TotalSeconds);
+            if (i == maxRetries)
+            {
+                logger.LogError(ex, "Migration {Max} denemeden sonra başarısız. Uygulama başlamayacak.", maxRetries);
+                throw;
+            }
+            Thread.Sleep(delay);
+        }
+    }
+}
 
 // --- MİDDLEWARE (ARA KATMAN) AYARLARI ---
 

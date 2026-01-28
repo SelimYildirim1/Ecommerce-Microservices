@@ -8,4 +8,10 @@ public class BasketCheckout
     public string LastName { get; set; } = default!;
     public string EmailAddress { get; set; } = default!;
     public string AddressLine { get; set; } = default!;
+
+    // Kart Bilgileri (Checkout sırasında gelecek)
+    public string CardName { get; set; } = default!;
+    public string CardNumber { get; set; } = default!;
+    public string Expiration { get; set; } = default!;
+    public string CVV { get; set; } = default!;
 }

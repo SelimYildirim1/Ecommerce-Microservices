@@ -1,40 +1,188 @@
-version: '3.8'
-
 services:
-  # 1. PostgreSQL (Veritabanı - Catalog ve Order servisleri için)
-  postgres:
-    image: postgres:15-alpine
-    container_name: ecommerce_postgres
-    restart: always
-    environment:
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=password123
-      - POSTGRES_DB=CatalogDB
-    ports:
-      - "5433:5432"
-    volumes:
-      - ./data/postgres:/var/lib/postgresql/data
+  # ----------------ALTYAPI (Infrastructure)----------------
 
-  # 2. Redis (Sepet Cache için)
-  redis:
+  postgres-db:
+    image: postgres:latest
+    container_name: ecommerce-postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - "POSTGRES_DB=CatalogDb"
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    networks:
+      - ecommerce-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  redis-db:
     image: redis:alpine
-    container_name: ecommerce_redis
-    restart: always
+    container_name: ecommerce-redis
     ports:
       - "6379:6379"
-    volumes:
-      - ./data/redis:/data
+    networks:
+      - ecommerce-network
 
-  # 3. RabbitMQ (Mesajlaşma için)
   rabbitmq:
-    image: rabbitmq:3-management-alpine
-    container_name: ecommerce_rabbitmq
-    restart: always
+    image: rabbitmq:3-management
+    container_name: ecommerce-rabbitmq
+    hostname: rabbitmq
     environment:
       - RABBITMQ_DEFAULT_USER=guest
       - RABBITMQ_DEFAULT_PASS=guest
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "15672:15672" # Yönetim Paneli
+      - "5672:5672"   # Mesajlaşma Portu
+    networks:
+      - ecommerce-network
+
+  # ----------------MİKROSERVİSLER (APIs)----------------
+
+  identity.api:
+    build:
+      context: .
+      dockerfile: src/Services/Identity.API/Dockerfile
+    container_name: identity-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      # Docker içinde Postgres'e 'localhost' diyemeyiz, 'postgres-db' demeliyiz
+      - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=IdentityDb;User Id=postgres;Password=postgres;
+    ports:
+      - "5001:8080"
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+
+  catalog.api:
+    build:
+      context: .
+      dockerfile: src/Services/Catalog.API/Dockerfile
+    container_name: catalog-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=CatalogDb;User Id=postgres;Password=postgres;
+    ports:
+      - "5000:8080"
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+
+  basket.api:
+    build:
+      context: .
+      dockerfile: src/Services/Basket.API/Dockerfile
+    container_name: basket-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__Redis=redis-db:6379
+      # Basket API, Catalog API ile konuşurken servis ismini kullanmalı!
+      - Services__CatalogApi=http://catalog-api:8080 
+      - RabbitMQ__HostName=rabbitmq
+    ports:
+      - "5038:8080"
+    depends_on:
+      - redis-db
+      - rabbitmq
+      - catalog.api
+    networks:
+      - ecommerce-network
+
+  order.api:
+    build:
+      context: .
+      dockerfile: src/Services/Order.API/Dockerfile
+    container_name: order-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=OrderDb;User Id=postgres;Password=postgres;
+      - RabbitMQ__HostName=rabbitmq
+    ports:
+      - "5059:8080"
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    networks:
+      - ecommerce-network
+
+  payment.api:
+    build:
+      context: .
+      dockerfile: src/Services/Payment.API/Dockerfile
+    container_name: payment-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - RabbitMQ__HostName=rabbitmq
+    ports:
+      - "5277:8080"
+    depends_on:
+      - rabbitmq
+    networks:
+      - ecommerce-network
+
+  api.gateway:
+    build:
+      context: .
+      dockerfile: src/API.Gateway/Dockerfile
+    container_name: api-gateway
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - Identity__Url=http://identity-api:8080
+    ports:
+      - "8000:8080"
+    depends_on:
+      - identity.api
+      - catalog.api
+      - basket.api
+      - order.api
+    networks:
+      - ecommerce-network
+
+      # ... Diğer servislerin altı ...
+
+  ecommerce.web:
+    build:
+      context: ./src/Clients/ecommerce-web
+      dockerfile: Dockerfile
+    container_name: ecommerce-web
+    restart: always
+    environment:
+      - NODE_ENV=development
+      # Hot Reload'ın (Anlık güncelleme) Mac'te düzgün çalışması için:
+      - WATCHPACK_POLLING=true
+      # API Gateway adresi - Docker network'te servis adı kullanılır
+      - NEXT_PUBLIC_API_GATEWAY_URL=http://api-gateway:8080 
+    ports:
+      - "3000:3000"
     volumes:
-      - ./data/rabbitmq:/var/lib/rabbitmq
+      # 1. BÜYÜK SİHİR: Bilgisayarındaki klasörü (/src/...) 
+      # konteynerin içine (/app) canlı yansıt.
+      - ./src/Clients/ecommerce-web:/app
+      
+      # 2. KORUMA KALKANI: Konteynerin kendi 'node_modules' klasörüne dokunma.
+      # (Senin bilgisayarındaki node_modules ile karışmasın diye)
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+    depends_on:
+      - api.gateway
+    networks:
+      - ecommerce-network
+
+volumes:
+  postgres_data:
+
+networks:
+  ecommerce-network:
+    driver: bridge

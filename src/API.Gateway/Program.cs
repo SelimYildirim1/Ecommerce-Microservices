@@ -1,12 +1,23 @@
 using Ocelot.DependencyInjection;
 using Ocelot.Middleware;
-using Microsoft.IdentityModel.Tokens; // BU GEREKLİ
-using System.Text; // BU GEREKLİ
+using Microsoft.IdentityModel.Tokens; // JWT için gerekli
+using System.Text; // Encoding için gerekli
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- 1. JWT AYARLARI (GÜVENLİK GÖREVLİSİ) ---
-// Identity API'deki "Secret" anahtarının AYNISI olmak zorunda!
+// --- 1. CORS AYARLARI (YENİ EKLENDİ) ---
+// Tarayıcının (localhost:3000) Gateway'e erişmesine izin veriyoruz.
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("CorsPolicy", policy =>
+    {
+        policy.AllowAnyOrigin()   // Frontend (localhost:3000) dahil herkes gelebilir
+              .AllowAnyMethod()   // GET, POST, PUT, DELETE
+              .AllowAnyHeader();  // Token vs. her türlü başlık
+    });
+});
+
+// --- 2. JWT AYARLARI (MEVCUT KODUN) ---
 var secretKey = "bu_benim_cok_gizli_sifrem_ecommerce_project_secret_key_12345"; 
 
 builder.Services.AddAuthentication()
@@ -16,23 +27,31 @@ builder.Services.AddAuthentication()
         {
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
-            ValidateIssuer = false, // Şimdilik false (kolaylık olsun diye)
-            ValidateAudience = false, // Şimdilik false
+            ValidateIssuer = false, 
+            ValidateAudience = false,
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero
         };
     });
 
-// --- OCELOT AYARLARI ---
+// --- 3. OCELOT AYARLARI ---
 builder.Configuration.AddJsonFile("ocelot.json", optional: false, reloadOnChange: true);
 builder.Services.AddOcelot(builder.Configuration);
 
 var app = builder.Build();
 
-// --- SIRALAMA ÖNEMLİ ---
-app.UseAuthentication(); // Önce kimlik sor
-app.UseAuthorization();  // Sonra yetki ver
+// --- 4. MIDDLEWARE SIRALAMASI (ÇOK KRİTİK!) ---
 
-await app.UseOcelot(); // En son yönlendir
+// 1. Önce CORS: Kapıyı çalana "Girebilirsin" de (Yoksa tarayıcı Auth'a takılır)
+app.UseCors("CorsPolicy");
+
+// 2. Sonra Kimlik Kontrolü
+app.UseAuthentication(); 
+
+// 3. Sonra Yetki Kontrolü
+app.UseAuthorization();  
+
+// 4. En son Yönlendirme
+await app.UseOcelot(); 
 
 app.Run();
