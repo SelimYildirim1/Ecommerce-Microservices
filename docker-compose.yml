@@ -38,7 +38,7 @@ services:
       - RABBITMQ_DEFAULT_PASS=guest
     ports:
       - "15672:15672" # Yönetim Paneli
-      - "5672:5672"   # Mesajlaşma Portu
+      - "5672:5672" # Mesajlaşma Portu
     networks:
       - ecommerce-network
 
@@ -69,11 +69,14 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=CatalogDb;User Id=postgres;Password=postgres;
+      - RabbitMQ__HostName=rabbitmq
     ports:
-      - "5000:8080"
+      - "5002:8080"
     depends_on:
       postgres-db:
         condition: service_healthy
+      rabbitmq:
+        condition: service_started
     networks:
       - ecommerce-network
 
@@ -86,7 +89,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__Redis=redis-db:6379
       # Basket API, Catalog API ile konuşurken servis ismini kullanmalı!
-      - Services__CatalogApi=http://catalog-api:8080 
+      - Services__CatalogApi=http://catalog-api:8080
       - RabbitMQ__HostName=rabbitmq
     ports:
       - "5038:8080"
@@ -162,14 +165,14 @@ services:
       # Hot Reload'ın (Anlık güncelleme) Mac'te düzgün çalışması için:
       - WATCHPACK_POLLING=true
       # API Gateway adresi - Docker network'te servis adı kullanılır
-      - NEXT_PUBLIC_API_GATEWAY_URL=http://api-gateway:8080 
+      - NEXT_PUBLIC_API_GATEWAY_URL=http://api-gateway:8080
     ports:
       - "3000:3000"
     volumes:
-      # 1. BÜYÜK SİHİR: Bilgisayarındaki klasörü (/src/...) 
+      # 1. BÜYÜK SİHİR: Bilgisayarındaki klasörü (/src/...)
       # konteynerin içine (/app) canlı yansıt.
       - ./src/Clients/ecommerce-web:/app
-      
+
       # 2. KORUMA KALKANI: Konteynerin kendi 'node_modules' klasörüne dokunma.
       # (Senin bilgisayarındaki node_modules ile karışmasın diye)
       - /app/node_modules
@@ -180,9 +183,23 @@ services:
     networks:
       - ecommerce-network
 
+  seq:
+    image: datalust/seq:latest
+    container_name: ecommerce-seq
+    environment:
+      - ACCEPT_EULA=Y
+      - SEQ_FIRSTRUN_ADMINPASSWORD=kRd4gGetLSybzd6
+    ports:
+      - "5340:80"
+      - "5341:5341"
+    networks:
+      - ecommerce-network
+
 volumes:
   postgres_data:
 
 networks:
   ecommerce-network:
     driver: bridge
+
+  

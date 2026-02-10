@@ -128,6 +128,11 @@ public class BasketController : ControllerBase
             return BadRequest("Sepet bulunamadı!");
         }
 
+        if (basket.Items == null || basket.Items.Count == 0)
+        {
+            return BadRequest("Sepetiniz boş! Sipariş oluşturulamaz.");
+        }
+
         // 2. Event Mesajını Oluştur
         var eventMessage = new BasketCheckoutEventMessage
         {

@@ -22,6 +22,15 @@ public class PaymentSucceededConsumer : IConsumer<PaymentSucceededEvent>
 
     public async Task Consume(ConsumeContext<PaymentSucceededEvent> context)
     {
+        // 👇 TEST İÇİN GEÇİCİ KOD:
+        // Rastgele hata fırlat (Retry politikasını test etmek için)
+        // var random = new Random().Next(1, 10);
+        // if (random < 5)
+        // {
+        //     _logger.LogError("⚠️ Simüle edilmiş bir hata oluştu! Tekrar denenmesi bekleniyor...");
+        //     throw new Exception("Veritabanı anlık kilitlendi! (Simülasyon)");
+        // }
+
         var msg = context.Message;
         _logger.LogInformation("PaymentSucceededEvent alındı. OrderId={OrderId}", msg.OrderId);
 

@@ -1,7 +1,13 @@
 using MassTransit;
 using Payment.API.Consumers;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context, config) =>
+{
+    config.ReadFrom.Configuration(context.Configuration); 
+});
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -11,7 +17,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddMassTransit(config =>
 {
     // Consumer'ı (Tüketiciyi) tanıtıyoruz
-    config.AddConsumer<OrderCreatedConsumer>();
+    config.AddConsumer<StockReservedConsumer>();
 
     config.UsingRabbitMq((ctx, cfg) =>
     {
@@ -28,10 +34,13 @@ builder.Services.AddMassTransit(config =>
             h.Password("guest");
         });
 
-        // Kuyruk Adı: "order-created-queue"
-        cfg.ReceiveEndpoint("order-created-queue", c =>
+        // 👇 GLOBAL MESAJ TEKRAR (RETRY) POLİTİKASI
+        cfg.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
+
+        // Kuyruk Adı: "stock-reserved-queue"
+        cfg.ReceiveEndpoint("stock-reserved-queue", c =>
         {
-            c.ConfigureConsumer<OrderCreatedConsumer>(ctx);
+            c.ConfigureConsumer<StockReservedConsumer>(ctx);
         });
     });
 });

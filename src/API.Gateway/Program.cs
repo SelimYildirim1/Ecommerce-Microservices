@@ -2,8 +2,14 @@ using Ocelot.DependencyInjection;
 using Ocelot.Middleware;
 using Microsoft.IdentityModel.Tokens; // JWT için gerekli
 using System.Text; // Encoding için gerekli
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context, config) =>
+{
+    config.ReadFrom.Configuration(context.Configuration); 
+});
 
 // --- 1. CORS AYARLARI (YENİ EKLENDİ) ---
 // Tarayıcının (localhost:3000) Gateway'e erişmesine izin veriyoruz.

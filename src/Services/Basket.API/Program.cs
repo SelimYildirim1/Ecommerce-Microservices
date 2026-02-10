@@ -3,9 +3,15 @@ using Basket.API.Services;
 using MassTransit;
 using Microsoft.Extensions.DependencyInjection;
 using Swashbuckle.AspNetCore;
+using Serilog;
 
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context, config) =>
+{
+    config.ReadFrom.Configuration(context.Configuration); 
+});
 
 // --- 1. Servis Kayıtları (DI Container) ---
 
@@ -53,6 +59,9 @@ builder.Services.AddMassTransit(config =>
             h.Username("guest");
             h.Password("guest");
         });
+
+        // 👇 GLOBAL MESAJ TEKRAR (RETRY) POLİTİKASI
+        _config.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
     });
 });
 

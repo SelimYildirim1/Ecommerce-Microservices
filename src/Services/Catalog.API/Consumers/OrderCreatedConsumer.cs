@@ -19,50 +19,109 @@ public class OrderCreatedConsumer : IConsumer<OrderCreatedEvent>
     public async Task Consume(ConsumeContext<OrderCreatedEvent> context)
     {
         var msg = context.Message;
-        _logger.LogInformation("OrderCreatedEvent alındı. OrderId={OrderId}, ItemCount={Count}",
-            msg.OrderId, msg.OrderItems?.Count ?? 0);
+        _logger.LogInformation("OrderCreatedEvent alındı. Stok kontrolü başlıyor. OrderId={OrderId}", msg.OrderId);
 
         if (msg.OrderItems == null || msg.OrderItems.Count == 0)
         {
-            _logger.LogInformation("Siparişte ürün yok, stok güncellemesi atlanıyor.");
+            // Siparişte ürün yoksa, teknik olarak stok sorunu yoktur.
+            // Ama 0 tutarlı bir ödeme vs. olabilir, akışı bozmamak için onay veriyoruz.
+            await PublishStockReserved(context);
             return;
         }
 
-        foreach (var item in msg.OrderItems)
+        // Kullanılacak ürünleri hafızaya alıp toplu kontrol edelim (Transaction mantığı)
+        // Aynı üründen birden fazla satır olabilir, group by ile toplam adedi bulalım.
+        var orderItemGroups = msg.OrderItems
+            .GroupBy(x => x.ProductId)
+            .ToList();
+
+        var productsToUpdate = new List<Catalog.API.Entities.Product>();
+
+        foreach (var group in orderItemGroups)
         {
-            if (string.IsNullOrEmpty(item.ProductId))
+            if (!Guid.TryParse(group.Key, out var productId))
             {
-                _logger.LogWarning("ProductId boş, atlanıyor.");
-                continue;
-            }
-            if (!Guid.TryParse(item.ProductId, out var productId))
-            {
-                _logger.LogWarning("Geçersiz ProductId: {ProductId}", item.ProductId);
-                continue;
+                await PublishStockNotReserved(context, $"Geçersiz ProductId: {group.Key}");
+                return;
             }
 
-            var product = await _context.Products.FirstOrDefaultAsync(p => p.Id == productId, context.CancellationToken);
+            var totalRequestedQty = group.Sum(x => x.Quantity);
+
+            // Veritabanından ürünü bul
+            var product = await _context.Products.FindAsync(productId);
+
             if (product == null)
             {
-                _logger.LogWarning("Ürün bulunamadı, stok düşülmedi. ProductId={ProductId}", item.ProductId);
-                continue;
+                await PublishStockNotReserved(context, $"Ürün bulunamadı. Id={productId}");
+                return;
             }
 
-            var previousStock = product.StockQuantity;
-            product.StockQuantity -= item.Quantity;
-            if (product.StockQuantity < 0)
+            if (product.StockQuantity < totalRequestedQty)
             {
-                _logger.LogWarning("ProductId={ProductId} stok negatife düştü: {Previous} -> {New}",
-                    item.ProductId, previousStock, product.StockQuantity);
+                await PublishStockNotReserved(context, 
+                    $"Yetersiz stok. Ürün: {product.Name}, Stok: {product.StockQuantity}, İstenen: {totalRequestedQty}");
+                return;
             }
-            else
-            {
-                _logger.LogInformation("Stok düşüldü. ProductId={ProductId}, {Previous} -> {New} (-{Qty})",
-                    item.ProductId, previousStock, product.StockQuantity, item.Quantity);
-            }
+
+            // Bu ürün onaylandı, listeye ekle (daha sonra güncellemek için)
+            // Not: EF Core tracking sayesinde bellekteki bu nesneyi güncelleyince SaveChanges ile yansır.
+            // Ancak henüz güncellemiyoruz, tüm ürünler onaylanınca düşeceğiz.
+            productsToUpdate.Add(product);
         }
 
-        await _context.SaveChangesAsync(context.CancellationToken);
-        _logger.LogInformation("Stok güncellemeleri kaydedildi. OrderId={OrderId}", msg.OrderId);
+        // --- BURAYA GELDİYSEK TÜM ÜRÜNLER İÇİN STOK YETERLİDİR ---
+
+        // 1. Stokları düş
+        foreach (var group in orderItemGroups)
+        {
+            var product = productsToUpdate.First(p => p.Id == Guid.Parse(group.Key));
+            var qty = group.Sum(x => x.Quantity);
+            product.StockQuantity -= qty;
+        }
+
+        // 2. DB'ye kaydet
+        await _context.SaveChangesAsync();
+        
+        _logger.LogInformation("Stoklar güncellendi. OrderId={OrderId}", msg.OrderId);
+
+        // 3. Başarılı eventini fırlat (Ödeme servisi bunu bekliyor)
+        await PublishStockReserved(context);
+    }
+
+    private async Task PublishStockReserved(ConsumeContext<OrderCreatedEvent> context)
+    {
+        var msg = context.Message;
+        var reservedEvent = new StockReservedEvent
+        {
+            OrderId = msg.OrderId,
+            BuyerId = msg.BuyerId,
+            Email = msg.Email,
+            TotalPrice = msg.TotalPrice,
+            CardName = msg.CardName,
+            CardNumber = msg.CardNumber,
+            Expiration = msg.Expiration,
+            CVV = msg.CVV,
+            OrderItems = msg.OrderItems
+        };
+        
+        // Eventi yayımla
+        await context.Publish(reservedEvent);
+        _logger.LogInformation("StockReservedEvent yayımlandı. OrderId={OrderId}", msg.OrderId);
+    }
+
+    private async Task PublishStockNotReserved(ConsumeContext<OrderCreatedEvent> context, string reason)
+    {
+        var msg = context.Message;
+        _logger.LogWarning("Stok rezervasyonu başarısız. OrderId={OrderId}, Sebep={Reason}", msg.OrderId, reason);
+
+        var failEvent = new StockNotReservedEvent
+        {
+            OrderId = msg.OrderId,
+            BuyerId = msg.BuyerId,
+            Email = msg.Email,
+            Reason = reason
+        };
+
+        await context.Publish(failEvent);
     }
 }

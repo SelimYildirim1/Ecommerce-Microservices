@@ -1,17 +1,24 @@
 
 using MassTransit;
 using Notification.API.Consumers;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Host.UseSerilog((context, config) =>
+{
+    config.ReadFrom.Configuration(context.Configuration); 
+});
+
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+
 
 // MassTransit Setup
 builder.Services.AddMassTransit(config =>
 {
     config.AddConsumer<PaymentSucceededConsumer>();
+    config.AddConsumer<PaymentFailedConsumer>();
 
     config.UsingRabbitMq((context, _config) =>
     {
@@ -25,9 +32,17 @@ builder.Services.AddMassTransit(config =>
             h.Password("guest");
         });
 
+        // 👇 GLOBAL MESAJ TEKRAR (RETRY) POLİTİKASI
+        _config.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
+
         _config.ReceiveEndpoint("notification-payment-succeeded-queue", e =>
         {
             e.ConfigureConsumer<PaymentSucceededConsumer>(context);
+        });
+
+        _config.ReceiveEndpoint("notification-payment-failed-queue", e =>
+        {
+            e.ConfigureConsumer<PaymentFailedConsumer>(context);
         });
     });
 });
@@ -37,7 +52,7 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+
 }
 
 var summaries = new[]

@@ -113,8 +113,14 @@ export default function OrdersPage() {
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">Durum</p>
-                  <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
-                    {order.orderStatus}
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold 
+                    ${order.orderStatus === 'Paid' ? 'bg-green-100 text-green-800' :
+                      order.orderStatus === 'StockFailed' || order.orderStatus === 'Failed' ? 'bg-red-100 text-red-800' :
+                        'bg-blue-100 text-blue-800'}`}>
+                    {order.orderStatus === 'Submitted' ? 'Sipariş Alındı' :
+                      order.orderStatus === 'Paid' ? 'Ödeme Onaylandı' :
+                        order.orderStatus === 'StockFailed' ? 'Stok Yetersiz' :
+                          order.orderStatus === 'Failed' ? 'İptal Edildi' : order.orderStatus}
                   </span>
                 </div>
               </div>

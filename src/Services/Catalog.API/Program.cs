@@ -5,8 +5,41 @@ using Core.Shared.Behaviors;
 using FluentValidation;
 using MassTransit;
 using Microsoft.Extensions.Logging;
+using Serilog;
+using RabbitMQ.Client;
+using HealthChecks.UI.Client;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// HealthChecks.Rabbitmq v9+ → IConnection DI üzerinden sağlanmalı
+builder.Services.AddSingleton<IConnection>(sp =>
+{
+    var factory = new ConnectionFactory();
+
+    var rabbitHost = builder.Configuration["RabbitMQ:HostName"];
+    if (!string.IsNullOrEmpty(rabbitHost))
+    {
+        factory.HostName = rabbitHost;
+    }
+    else
+    {
+        factory.HostName = "localhost";
+    }
+    factory.UserName = "guest";
+    factory.Password = "guest";
+
+    return factory.CreateConnection();
+});
+
+builder.Services.AddHealthChecks()
+    .AddNpgSql(builder.Configuration.GetConnectionString("DefaultConnection")!)
+    .AddRabbitMQ(name: "rabbitmq");
+
+builder.Host.UseSerilog((context, config) =>
+{
+    config.ReadFrom.Configuration(context.Configuration); 
+});
 
 // --- SERVİSLERİN EKLENDİĞİ BÖLÜM (DI Container) ---
 
@@ -48,6 +81,9 @@ builder.Services.AddMassTransit(config =>
             h.Username("guest");
             h.Password("guest");
         });
+
+        // 👇 GLOBAL MESAJ TEKRAR (RETRY) POLİTİKASI
+        _config.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
         
         // Stok düşürme için OrderCreatedEvent'i dinliyoruz
         _config.ReceiveEndpoint("catalog-stock-update-queue", e =>
@@ -106,5 +142,11 @@ if (app.Environment.IsDevelopment())
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Health Check Endpoint
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+}).AllowAnonymous();
 
 app.Run();

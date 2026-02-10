@@ -3,22 +3,22 @@ using Core.Shared.Events;
 
 namespace Payment.API.Consumers;
 
-public class OrderCreatedConsumer : IConsumer<OrderCreatedEvent>
+public class StockReservedConsumer : IConsumer<StockReservedEvent>
 {
-    private readonly ILogger<OrderCreatedConsumer> _logger;
+    private readonly ILogger<StockReservedConsumer> _logger;
     private readonly IPublishEndpoint _publishEndpoint;
 
-    public OrderCreatedConsumer(ILogger<OrderCreatedConsumer> logger, IPublishEndpoint publishEndpoint)
+    public StockReservedConsumer(ILogger<StockReservedConsumer> logger, IPublishEndpoint publishEndpoint)
     {
         _logger = logger;
         _publishEndpoint = publishEndpoint;
     }
 
-    public async Task Consume(ConsumeContext<OrderCreatedEvent> context)
+    public async Task Consume(ConsumeContext<StockReservedEvent> context)
     {
         var message = context.Message;
         
-        _logger.LogInformation("--- ÖDEME İŞLEMİ BAŞLADI ---");
+        _logger.LogInformation("--- ÖDEME İŞLEMİ BAŞLADI (Stok Ayrıldı) ---");
         _logger.LogInformation($"Sipariş ID: {message.OrderId} | Tutar: {message.TotalPrice} TL");
         _logger.LogInformation($"Kart Sahibi: {message.CardName}");
 
@@ -43,7 +43,17 @@ public class OrderCreatedConsumer : IConsumer<OrderCreatedEvent>
         else
         {
             _logger.LogError("❌ ÖDEME BAŞARISIZ! Bakiye yetersiz.");
-            // İleride PaymentFailedEvent eklenebilir
+            
+            // Telafi Edici İşlem: Catalog servisine stoğu geri eklemesi için haber ver
+            // Stok daha önce düşüldüğü için artık iade edilmeli!
+            await _publishEndpoint.Publish(new PaymentFailedEvent
+            {
+                OrderId = message.OrderId,
+                Email = message.Email,
+                Reason = "Yetersiz bakiye veya kart limiti",
+                OrderItems = message.OrderItems
+            });
+            _logger.LogWarning("PaymentFailedEvent yayımlandı. OrderId={OrderId}", message.OrderId);
         }
     }
 }

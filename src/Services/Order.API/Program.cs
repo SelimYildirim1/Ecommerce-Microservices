@@ -4,8 +4,52 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Order.API.Consumers; // Consumer'ın olduğu yer
 using Order.API.Data;
+using Serilog;
+using HealthChecks.UI.Client;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using RabbitMQ.Client;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// HealthChecks.Rabbitmq v9+ → IConnection DI üzerinden sağlanmalı
+builder.Services.AddSingleton<IConnection>(sp =>
+{
+    var factory = new ConnectionFactory();
+
+    // Docker ortamında RabbitMQ__HostName env var (ör: "rabbitmq") kullanılır,
+    // yoksa appsettings'teki AMQP URI, yoksa localhost'a bağlanır.
+    var rabbitHost = builder.Configuration["RabbitMQ:HostName"];
+    var hostAddress = builder.Configuration["EventBusSettings:HostAddress"];
+
+    if (!string.IsNullOrEmpty(rabbitHost))
+    {
+        factory.HostName = rabbitHost;
+        factory.UserName = "guest";
+        factory.Password = "guest";
+    }
+    else if (!string.IsNullOrEmpty(hostAddress))
+    {
+        factory.Uri = new Uri(hostAddress);
+    }
+    else
+    {
+        factory.HostName = "localhost";
+        factory.UserName = "guest";
+        factory.Password = "guest";
+    }
+
+    return factory.CreateConnection();
+});
+
+builder.Services.AddHealthChecks()
+    .AddNpgSql(builder.Configuration.GetConnectionString("DefaultConnection")!)
+    .AddRabbitMQ();
+
+//  1. Serilog Ayarı (Logları Seq'e gönder)
+builder.Host.UseSerilog((context, config) =>
+{
+    config.ReadFrom.Configuration(context.Configuration); 
+});
 
 // 1. Controller ve Swagger
 builder.Services.AddControllers();
@@ -14,8 +58,17 @@ builder.Services.AddSwaggerGen();
 
 // 2. Veritabanı (Postgres - OrderDB)
 builder.Services.AddDbContext<OrderDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
-
+{
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"), configure =>
+    {
+        // 👇 İŞTE SİHİRLİ KOD BURASI:
+        // Veritabanı hatası alırsan (bağlantı kopması vb.), 5 kereye kadar tekrar dene.
+        configure.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(10),
+            errorCodesToAdd: null);
+    });
+});
 // 3. MediatR (CQRS için)
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
 
@@ -25,6 +78,8 @@ builder.Services.AddMassTransit(config =>
     // A) Consumer'ları (Dinleyicileri) Tanıt
     config.AddConsumer<BasketCheckoutConsumer>();
     config.AddConsumer<PaymentSucceededConsumer>();
+    config.AddConsumer<PaymentFailedConsumer>();
+    config.AddConsumer<StockNotReservedConsumer>();
 
     // B) RabbitMQ Bağlantısı
     config.UsingRabbitMq((context, _config) =>
@@ -42,11 +97,29 @@ builder.Services.AddMassTransit(config =>
             h.Password("guest");
         });
 
+        // 👇 GLOBAL MESAJ TEKRAR (RETRY) POLİTİKASI
+        // Herhangi bir mesaj işlenirken hata olursa:
+        // 1) Hemen tekrar dene
+        // 2) Olmazsa 5 sn bekle tekrar dene
+        // 3) Olmazsa 5 sn daha bekle tekrar dene
+        // 4) Hala başarısızsa hata kuyruğuna düşer (MassTransit'in kendi mekanizması)
+        _config.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
+
         // C) Kuyruk Ayarları
         // PaymentSucceededEvent için özel endpoint
         _config.ReceiveEndpoint("order-payment-succeeded-queue", e =>
         {
             e.ConfigureConsumer<PaymentSucceededConsumer>(context);
+        });
+
+        _config.ReceiveEndpoint("order-payment-failed-queue", e =>
+        {
+            e.ConfigureConsumer<PaymentFailedConsumer>(context);
+        });
+
+        _config.ReceiveEndpoint("order-stock-not-reserved-queue", e =>
+        {
+            e.ConfigureConsumer<StockNotReservedConsumer>(context);
         });
         
         // Diğer consumer'lar için otomatik endpoint
@@ -81,5 +154,11 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthorization();
 app.MapControllers();
+
+// 👇 2. Endpoint'i Aç (App tarafı)
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+}).AllowAnonymous();
 
 app.Run();
