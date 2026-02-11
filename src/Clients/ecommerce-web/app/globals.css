@@ -1,62 +1,76 @@
 @import "tailwindcss";
 
-/* Varsayılan Tema (Mesela: Modern Mavi - Default) */
+/* Sade Siyah-Beyaz Tema */
 :root {
   /* Arkaplanlar */
-  --background: 0 0% 100%;       /* Beyaz */
-  --foreground: 222.2 84% 4.9%;  /* Koyu Lacivert Yazı */
+  --background: 0 0% 100%;         /* Saf Beyaz */
+  --foreground: 0 0% 8%;           /* Koyu Siyah Yazı */
 
-  /* Kartlar ve Kutular */
+  /* Kartlar */
   --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
- 
-  /* Ana Renk (Müşteriye göre değişecek olan bu!) */
-  --primary: 221.2 83.2% 53.3%;  /* Parlak Mavi */
-  --primary-foreground: 210 40% 98%; /* Mavi üstüne beyaz yazı */
+  --card-foreground: 0 0% 8%;
 
-  /* İkincil Renk (Gri tonlar vb.) */
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
+  /* Ana Renk - Siyah */
+  --primary: 0 0% 8%;
+  --primary-foreground: 0 0% 100%;
+
+  /* İkincil / Muted */
+  --muted: 0 0% 96%;
+  --muted-foreground: 0 0% 45%;
 
   /* Çizgiler */
-  --border: 214.3 31.8% 91.4%;
+  --border: 0 0% 90%;
+
+  /* Accent */
+  --accent: 0 0% 96%;
+  --accent-foreground: 0 0% 8%;
+
+  /* Danger */
+  --danger: 0 72% 51%;
+  --danger-foreground: 0 0% 100%;
+
+  /* Success */
+  --success: 142 76% 36%;
+  --success-foreground: 0 0% 100%;
 }
 
 @theme {
-  /* Arkaplanlar */
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
-  
-  /* Kartlar ve Kutular */
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
- 
-  /* Ana Renk (Müşteriye göre değişecek olan bu!) */
   --color-primary: hsl(var(--primary));
   --color-primary-foreground: hsl(var(--primary-foreground));
-
-  /* İkincil Renk (Gri tonlar vb.) */
   --color-muted: hsl(var(--muted));
   --color-muted-foreground: hsl(var(--muted-foreground));
-
-  /* Çizgiler */
   --color-border: hsl(var(--border));
-}
-
-/* Örnek: "Doğa Teması" isteyen müşteri için (Yeşil) 
-   Bunu ileride kodla değiştireceğiz. */
-.theme-green {
-  --primary: 142.1 76.2% 36.3%; /* Yeşil */
-  --primary-foreground: 355.7 100% 97.3%;
-}
-
-/* Örnek: "Lüks Tema" isteyen müşteri için (Altın/Siyah) */
-.theme-gold {
-  --primary: 47.9 95.8% 53.1%; /* Altın Sarısı */
-  --primary-foreground: 26 83.3% 14.1%; /* Üstüne koyu yazı */
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-danger: hsl(var(--danger));
+  --color-danger-foreground: hsl(var(--danger-foreground));
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
 }
 
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
+}
+
+/* Smooth scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground));
+  border-radius: 3px;
+}
+
+/* Selection */
+::selection {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
 }

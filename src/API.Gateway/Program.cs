@@ -3,6 +3,7 @@ using Ocelot.Middleware;
 using Microsoft.IdentityModel.Tokens; // JWT için gerekli
 using System.Text; // Encoding için gerekli
 using Serilog;
+using Microsoft.AspNetCore.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -40,24 +41,45 @@ builder.Services.AddAuthentication()
         };
     });
 
-// --- 3. OCELOT AYARLARI ---
+// --- 3. HEALTHCHECKS UI ---
+builder.Services
+    .AddHealthChecksUI()
+    .AddInMemoryStorage();
+
+// --- 4. OCELOT AYARLARI ---
 builder.Configuration.AddJsonFile("ocelot.json", optional: false, reloadOnChange: true);
 builder.Services.AddOcelot(builder.Configuration);
 
 var app = builder.Build();
 
-// --- 4. MIDDLEWARE SIRALAMASI (ÇOK KRİTİK!) ---
-
-// 1. Önce CORS: Kapıyı çalana "Girebilirsin" de (Yoksa tarayıcı Auth'a takılır)
+// --- 5. MIDDLEWARE SIRALAMASI (ÇOK KRİTİK!) ---
+//
+// -1. HealthChecks UI middleware (gömülü statik dosyalar için)
+app.UseHealthChecksUI();
+//
+// 0. Endpoint tabanlı routing middleware
+app.UseRouting();
+//
+// 1. CORS: Tarayıcıdan gelen isteklere izin ver
 app.UseCors("CorsPolicy");
-
-// 2. Sonra Kimlik Kontrolü
+//
+// 2. Kimlik Doğrulama
 app.UseAuthentication(); 
-
-// 3. Sonra Yetki Kontrolü
-app.UseAuthorization();  
-
-// 4. En son Yönlendirme
+//
+// 3. Yetkilendirme
+app.UseAuthorization();
+//
+// 4. HealthChecks UI endpoint'lerini Ocelot'tan ÖNCE map et
+app.UseEndpoints(endpoints =>
+{
+    endpoints.MapHealthChecksUI(c =>
+    {
+        c.UIPath = "/health-ui";
+        c.ApiPath = "/health-api";
+    }).AllowAnonymous();
+});
+//
+// 5. En son Ocelot gateway
 await app.UseOcelot(); 
 
 app.Run();
