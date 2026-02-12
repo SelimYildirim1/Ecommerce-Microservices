@@ -2,6 +2,8 @@ using MassTransit;
 using Core.Shared.Events;
 using Order.API.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.SignalR;
+using Order.API.Hubs;
 
 namespace Order.API.Consumers;
 
@@ -13,11 +15,16 @@ public class PaymentSucceededConsumer : IConsumer<PaymentSucceededEvent>
 {
     private readonly OrderDbContext _context;
     private readonly ILogger<PaymentSucceededConsumer> _logger;
+    private readonly IHubContext<OrderStatusHub> _hubContext;
 
-    public PaymentSucceededConsumer(OrderDbContext context, ILogger<PaymentSucceededConsumer> logger)
+    public PaymentSucceededConsumer(
+        OrderDbContext context,
+        ILogger<PaymentSucceededConsumer> logger,
+        IHubContext<OrderStatusHub> hubContext)
     {
         _context = context;
         _logger = logger;
+        _hubContext = hubContext;
     }
 
     public async Task Consume(ConsumeContext<PaymentSucceededEvent> context)
@@ -43,9 +50,33 @@ public class PaymentSucceededConsumer : IConsumer<PaymentSucceededEvent>
 
         var previousStatus = order.OrderStatus;
         order.OrderStatus = "Paid";
-        
+
         await _context.SaveChangesAsync(context.CancellationToken);
-        _logger.LogInformation("✅ Sipariş durumu güncellendi. OrderId={OrderId}, {Previous} -> Paid", 
+        _logger.LogInformation("✅ Sipariş durumu güncellendi. OrderId={OrderId}, {Previous} -> Paid",
             msg.OrderId, previousStatus);
+
+        // SignalR üzerinden ilgili kullanıcıya gerçek zamanlı bilgi gönder
+        try
+        {
+            var userGroup = OrderStatusHub.GetUserGroupName(order.UserName);
+
+            await _hubContext.Clients.Group(userGroup).SendAsync(
+                "OrderStatusUpdated",
+                new
+                {
+                    orderId = order.Id,
+                    status = order.OrderStatus,
+                    updatedAt = DateTime.UtcNow
+                },
+                context.CancellationToken);
+
+            _logger.LogInformation("📡 SignalR - OrderStatusUpdated gönderildi. OrderId={OrderId}, Status={Status}",
+                order.Id, order.OrderStatus);
+        }
+        catch (Exception ex)
+        {
+            // Sipariş güncellemesi başarılı; SignalR sadece bildirim katmanı, o yüzden hatayı swallow ediyoruz
+            _logger.LogError(ex, "SignalR üzerinden OrderStatusUpdated gönderilirken hata oluştu. OrderId={OrderId}", order.Id);
+        }
     }
 }

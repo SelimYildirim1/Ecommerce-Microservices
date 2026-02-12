@@ -8,6 +8,7 @@ using Serilog;
 using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using RabbitMQ.Client;
+using Order.API.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -55,6 +56,22 @@ builder.Host.UseSerilog((context, config) =>
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// SignalR (Gerçek zamanlı sipariş durumu için)
+builder.Services.AddSignalR();
+
+// CORS - Next.js (http://localhost:3000) üzerinden gelen SignalR bağlantılarını kabul et
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("CorsPolicy", policy =>
+    {
+        policy
+            .WithOrigins("http://localhost:3000")
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
+});
 
 // 2. Veritabanı (Postgres - OrderDB)
 builder.Services.AddDbContext<OrderDbContext>(options =>
@@ -152,8 +169,14 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+// CORS, auth'dan önce olmalı
+app.UseCors("CorsPolicy");
+
 app.UseAuthorization();
 app.MapControllers();
+
+// SignalR Hub endpoint'i
+app.MapHub<OrderStatusHub>("/hubs/orderStatus");
 
 // 👇 2. Endpoint'i Aç (App tarafı)
 app.MapHealthChecks("/health", new HealthCheckOptions

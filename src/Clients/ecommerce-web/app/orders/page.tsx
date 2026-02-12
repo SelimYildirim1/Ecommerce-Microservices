@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/Header";
 import Cookies from "js-cookie";
+import * as signalR from "@microsoft/signalr";
 
 interface OrderItem {
   productId: string;
@@ -43,6 +44,17 @@ export default function OrdersPage() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "info" | "error";
+  } | null>(null);
+
+  // Toast otomatik kapanma
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 5000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -77,6 +89,61 @@ export default function OrdersPage() {
     fetchOrders();
   }, [user, isLoading, router]);
 
+  // SignalR ile gerçek zamanlı sipariş durumu dinleme
+  useEffect(() => {
+    if (isLoading || !user) return;
+
+    const token = Cookies.get("token");
+    if (!token) return;
+
+    const hubUrl = `http://localhost:5059/hubs/orderStatus?userId=${encodeURIComponent(
+      user.id
+    )}`;
+
+    const connection = new signalR.HubConnectionBuilder()
+      .withUrl(hubUrl, {
+        withCredentials: true,
+        accessTokenFactory: () => token,
+      })
+      .withAutomaticReconnect()
+      .configureLogging(signalR.LogLevel.Information)
+      .build();
+
+    // Backend'den gelen OrderStatusUpdated event'ini dinle
+    connection.on(
+      "OrderStatusUpdated",
+      (payload: { orderId: string; status: string; updatedAt?: string }) => {
+        setOrders((prev) =>
+          prev.map((o) =>
+            o.id === payload.orderId ? { ...o, orderStatus: payload.status } : o
+          )
+        );
+
+        setToast({
+          message:
+            payload.status === "Paid"
+              ? "✅ Ödemen onaylandi, siparis durumu guncellendi."
+              : `📦 Siparis durumu guncellendi: ${payload.status}`,
+          type: payload.status === "Paid" ? "success" : "info",
+        });
+      }
+    );
+
+    connection
+      .start()
+      .catch((err) =>
+        console.error("SignalR baglanti hatasi (OrderStatusHub):", err)
+      );
+
+    return () => {
+      connection
+        .stop()
+        .catch((err) =>
+          console.error("SignalR baglanti durdurulurken hata:", err)
+        );
+    };
+  }, [isLoading, user]);
+
   if (loadingData) {
     return (
       <main className="min-h-screen bg-background">
@@ -97,6 +164,84 @@ export default function OrdersPage() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <Header />
+
+      {/* Canlı sipariş durumu toast bildirimi */}
+      {toast && (
+        <div className="fixed top-20 right-4 z-50">
+          <div
+            className={`max-w-sm rounded-xl shadow-lg border px-4 py-3 text-sm flex items-start gap-3 ${
+              toast.type === "success"
+                ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                : toast.type === "error"
+                ? "bg-red-50 border-red-200 text-red-800"
+                : "bg-slate-50 border-slate-200 text-slate-800"
+            }`}
+          >
+            <div className="mt-0.5">
+              {toast.type === "success" ? (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                  className="w-5 h-5"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="m4.5 12.75 6 6 9-13.5"
+                  />
+                </svg>
+              ) : toast.type === "error" ? (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                  className="w-5 h-5"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M6 18 18 6M6 6l12 12"
+                  />
+                </svg>
+              ) : (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                  className="w-5 h-5"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+                  />
+                </svg>
+              )}
+            </div>
+            <div className="flex-1">
+              <p className="font-medium">
+                {toast.type === "success"
+                  ? "Siparisin canli olarak guncellendi"
+                  : "Siparis durumu guncellendi"}
+              </p>
+              <p className="text-xs mt-1 opacity-90">{toast.message}</p>
+            </div>
+            <button
+              onClick={() => setToast(null)}
+              className="ml-2 text-xs opacity-70 hover:opacity-100"
+            >
+              Kapat
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-[1440px] mx-auto px-4 lg:px-8 py-8">
         {/* Breadcrumb */}
