@@ -15,7 +15,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_PREFIX: ${{ github.repository_owner }}/ecommerce
 
 jobs:
   # ==================== 1. TEST ====================
@@ -79,6 +78,10 @@ jobs:
       - name: Checkout kodu
         uses: actions/checkout@v4
 
+      - name: Repo owner'ı lowercase yap
+        id: repo
+        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
       - name: GitHub Container Registry'ye giriş yap
         uses: docker/login-action@v3
         with:
@@ -96,8 +99,8 @@ jobs:
           file: ${{ matrix.service.dockerfile }}
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service.name }}:${{ github.sha }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service.name }}:latest
+            ${{ env.REGISTRY }}/${{ steps.repo.outputs.owner }}/ecommerce/${{ matrix.service.name }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ steps.repo.outputs.owner }}/ecommerce/${{ matrix.service.name }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -115,21 +118,27 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Repo owner'ı lowercase yap
+        id: repo
+        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
       - name: Image tag'lerini güncelle
         run: |
+          IMAGE_BASE="${{ env.REGISTRY }}/${{ steps.repo.outputs.owner }}/ecommerce"
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
           echo "Yeni image tag: $SHORT_SHA"
+          echo "Image base: $IMAGE_BASE"
 
           # Backend manifest'teki image'ları güncelle
-          sed -i "s|image: identity-api:.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/identity-api:${{ github.sha }}|g" k8s/apps-backend.yaml
-          sed -i "s|image: catalog-api:.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/catalog-api:${{ github.sha }}|g" k8s/apps-backend.yaml
-          sed -i "s|image: basket-api:.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/basket-api:${{ github.sha }}|g" k8s/apps-backend.yaml
-          sed -i "s|image: order-api:.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/order-api:${{ github.sha }}|g" k8s/apps-backend.yaml
-          sed -i "s|image: payment-api:.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/payment-api:${{ github.sha }}|g" k8s/apps-backend.yaml
-          sed -i "s|image: api-gateway:.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/api-gateway:${{ github.sha }}|g" k8s/apps-backend.yaml
+          sed -i "s|image: identity-api:.*|image: ${IMAGE_BASE}/identity-api:${{ github.sha }}|g" k8s/apps-backend.yaml
+          sed -i "s|image: catalog-api:.*|image: ${IMAGE_BASE}/catalog-api:${{ github.sha }}|g" k8s/apps-backend.yaml
+          sed -i "s|image: basket-api:.*|image: ${IMAGE_BASE}/basket-api:${{ github.sha }}|g" k8s/apps-backend.yaml
+          sed -i "s|image: order-api:.*|image: ${IMAGE_BASE}/order-api:${{ github.sha }}|g" k8s/apps-backend.yaml
+          sed -i "s|image: payment-api:.*|image: ${IMAGE_BASE}/payment-api:${{ github.sha }}|g" k8s/apps-backend.yaml
+          sed -i "s|image: api-gateway:.*|image: ${IMAGE_BASE}/api-gateway:${{ github.sha }}|g" k8s/apps-backend.yaml
 
           # Frontend manifest'teki image'ı güncelle
-          sed -i "s|image: ecommerce-web:.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/ecommerce-web:${{ github.sha }}|g" k8s/apps-frontend.yaml
+          sed -i "s|image: ecommerce-web:.*|image: ${IMAGE_BASE}/ecommerce-web:${{ github.sha }}|g" k8s/apps-frontend.yaml
 
           # imagePullPolicy'yi güncelle (Never -> Always, registry'den çekecek)
           sed -i "s|imagePullPolicy: Never|imagePullPolicy: Always|g" k8s/apps-backend.yaml
