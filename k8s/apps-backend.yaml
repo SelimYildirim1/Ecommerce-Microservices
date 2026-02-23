@@ -10,7 +10,7 @@
 #   - API.Gateway    (Ocelot API Geçidi)
 #
 # ÖNEMLİ:
-#   - imagePullPolicy: Never -> Lokalde build edilen imajları kullanır
+#   - imagePullPolicy: Always -> Lokalde build edilen imajları kullanır
 #   - Servis isimleri ocelot.json ve docker-compose ile uyumludur
 #   - Connection string'ler K8s servis isimlerini kullanır
 # =============================================================
@@ -39,8 +39,8 @@ spec:
     spec:
       containers:
         - name: identity-api
-          image: identity-api:latest
-          imagePullPolicy: Never
+          image: ghcr.io/selimyildirim1/ecommerce/identity-api:9b7c00f3a2e01c8ebb47fb777014deda3b678267
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           env:
@@ -109,8 +109,8 @@ spec:
     spec:
       containers:
         - name: catalog-api
-          image: catalog-api:latest
-          imagePullPolicy: Never
+          image: ghcr.io/selimyildirim1/ecommerce/catalog-api:9b7c00f3a2e01c8ebb47fb777014deda3b678267
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           env:
@@ -179,8 +179,8 @@ spec:
     spec:
       containers:
         - name: basket-api
-          image: basket-api:latest
-          imagePullPolicy: Never
+          image: ghcr.io/selimyildirim1/ecommerce/basket-api:9b7c00f3a2e01c8ebb47fb777014deda3b678267
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           env:
@@ -251,8 +251,8 @@ spec:
     spec:
       containers:
         - name: order-api
-          image: order-api:latest
-          imagePullPolicy: Never
+          image: ghcr.io/selimyildirim1/ecommerce/order-api:9b7c00f3a2e01c8ebb47fb777014deda3b678267
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           env:
@@ -321,8 +321,8 @@ spec:
     spec:
       containers:
         - name: payment-api
-          image: payment-api:latest
-          imagePullPolicy: Never
+          image: ghcr.io/selimyildirim1/ecommerce/payment-api:9b7c00f3a2e01c8ebb47fb777014deda3b678267
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           env:
@@ -391,8 +391,8 @@ spec:
     spec:
       containers:
         - name: api-gateway
-          image: api-gateway:latest
-          imagePullPolicy: Never
+          image: ghcr.io/selimyildirim1/ecommerce/api-gateway:9b7c00f3a2e01c8ebb47fb777014deda3b678267
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           env:
