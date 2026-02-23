@@ -30,8 +30,8 @@ spec:
     spec:
       containers:
         - name: ecommerce-web
-          image: ecommerce-web:latest
-          imagePullPolicy: Never
+          image: ghcr.io/selimyildirim1/ecommerce/ecommerce-web:9b7c00f3a2e01c8ebb47fb777014deda3b678267
+          imagePullPolicy: Always
           ports:
             - containerPort: 3000
           env:
