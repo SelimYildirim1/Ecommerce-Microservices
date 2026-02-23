@@ -7,6 +7,7 @@ import Link from "next/link";
 import Header from "@/components/Header";
 import Cookies from "js-cookie";
 import * as signalR from "@microsoft/signalr";
+import { API_URL, SIGNALR_URL } from "@/lib/api";
 
 interface OrderItem {
   productId: string;
@@ -71,7 +72,7 @@ export default function OrdersPage() {
           return;
         }
 
-        const res = await fetch(`http://localhost:8000/orders/${user.id}`, {
+        const res = await fetch(`${API_URL}/orders/${user.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -96,7 +97,7 @@ export default function OrdersPage() {
     const token = Cookies.get("token");
     if (!token) return;
 
-    const hubUrl = `http://localhost:5059/hubs/orderStatus?userId=${encodeURIComponent(
+    const hubUrl = `${SIGNALR_URL}/hubs/orderStatus?userId=${encodeURIComponent(
       user.id
     )}`;
 
@@ -228,7 +229,7 @@ export default function OrdersPage() {
             <div className="flex-1">
               <p className="font-medium">
                 {toast.type === "success"
-                  ? "Siparisin canli olarak guncellendi"
+                  ? "Siparisin guncellendi"
                   : "Siparis durumu guncellendi"}
               </p>
               <p className="text-xs mt-1 opacity-90">{toast.message}</p>

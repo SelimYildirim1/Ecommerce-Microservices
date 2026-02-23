@@ -4,6 +4,7 @@ using MassTransit;
 using Microsoft.Extensions.DependencyInjection;
 using Swashbuckle.AspNetCore;
 using Serilog;
+using Prometheus;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -75,7 +76,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseHttpMetrics(); // Prometheus HTTP metrikleri
 app.UseAuthorization();
 app.MapControllers();
+app.MapMetrics(); // /metrics endpoint'i
 
 app.Run();

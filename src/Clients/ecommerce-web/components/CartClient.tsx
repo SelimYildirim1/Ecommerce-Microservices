@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/context/CartContext";
 import Link from "next/link";
+import { API_URL } from "@/lib/api";
 
 interface CartItem {
   quantity: number;
@@ -35,7 +36,7 @@ export default function CartClient({ initialBasket }: { initialBasket: Basket | 
     setLoading(true);
 
     try {
-      const res = await fetch("http://localhost:8000/basket", {
+      const res = await fetch(`${API_URL}/basket`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userName: basket.userName, items: updatedItems })

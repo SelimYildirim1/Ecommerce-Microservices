@@ -80,7 +80,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       expires: 30, // 30 gün
       path: "/", // Tüm sayfalarda erişilebilir
       sameSite: "lax", // CSRF koruması için
-      secure: process.env.NODE_ENV === "production" // Production'da HTTPS zorunlu
+      secure: typeof window !== "undefined" && window.location.protocol === "https:" // Sadece HTTPS bağlantıda secure flag aç
     });
 
     // 2. Token'ı çöz ve state'e at

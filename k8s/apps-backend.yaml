@@ -1,0 +1,435 @@
+# =============================================================
+#  E-COMMERCE KUBERNETES - BACKEND SERVİSLERİ
+# =============================================================
+# Bu dosya tüm backend mikroservislerini içerir:
+#   - Identity.API   (Kimlik Doğrulama / JWT)
+#   - Catalog.API    (Ürün Kataloğu)
+#   - Basket.API     (Alışveriş Sepeti)
+#   - Order.API      (Sipariş Yönetimi)
+#   - Payment.API    (Ödeme İşlemleri)
+#   - API.Gateway    (Ocelot API Geçidi)
+#
+# ÖNEMLİ:
+#   - imagePullPolicy: Never -> Lokalde build edilen imajları kullanır
+#   - Servis isimleri ocelot.json ve docker-compose ile uyumludur
+#   - Connection string'ler K8s servis isimlerini kullanır
+# =============================================================
+
+# =============================================================
+#  IDENTITY API (Kimlik Doğrulama)
+# =============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identity-api
+  namespace: ecommerce
+  labels:
+    app: identity-api
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: identity-api
+  template:
+    metadata:
+      labels:
+        app: identity-api
+        tier: backend
+    spec:
+      containers:
+        - name: identity-api
+          image: identity-api:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Development"
+            - name: ConnectionStrings__DefaultConnection
+              value: "Server=postgres-db;Port=5432;Database=IdentityDb;User Id=postgres;Password=postgres;"
+            - name: RabbitMQ__HostName
+              value: "rabbitmq"
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: identity-api
+  namespace: ecommerce
+  labels:
+    app: identity-api
+spec:
+  selector:
+    app: identity-api
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP
+
+---
+# =============================================================
+#  CATALOG API (Ürün Kataloğu)
+# =============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-api
+  namespace: ecommerce
+  labels:
+    app: catalog-api
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: catalog-api
+  template:
+    metadata:
+      labels:
+        app: catalog-api
+        tier: backend
+    spec:
+      containers:
+        - name: catalog-api
+          image: catalog-api:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Development"
+            - name: ConnectionStrings__DefaultConnection
+              value: "Server=postgres-db;Port=5432;Database=CatalogDb;User Id=postgres;Password=postgres;"
+            - name: RabbitMQ__HostName
+              value: "rabbitmq"
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog-api
+  namespace: ecommerce
+  labels:
+    app: catalog-api
+spec:
+  selector:
+    app: catalog-api
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP
+
+---
+# =============================================================
+#  BASKET API (Alışveriş Sepeti)
+# =============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: basket-api
+  namespace: ecommerce
+  labels:
+    app: basket-api
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: basket-api
+  template:
+    metadata:
+      labels:
+        app: basket-api
+        tier: backend
+    spec:
+      containers:
+        - name: basket-api
+          image: basket-api:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Development"
+            - name: ConnectionStrings__Redis
+              value: "redis-db:6379"
+            - name: Services__CatalogApi
+              value: "http://catalog-api:8080"
+            - name: RabbitMQ__HostName
+              value: "rabbitmq"
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: basket-api
+  namespace: ecommerce
+  labels:
+    app: basket-api
+spec:
+  selector:
+    app: basket-api
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP
+
+---
+# =============================================================
+#  ORDER API (Sipariş Yönetimi + SignalR)
+# =============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-api
+  namespace: ecommerce
+  labels:
+    app: order-api
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-api
+  template:
+    metadata:
+      labels:
+        app: order-api
+        tier: backend
+    spec:
+      containers:
+        - name: order-api
+          image: order-api:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Development"
+            - name: ConnectionStrings__DefaultConnection
+              value: "Server=postgres-db;Port=5432;Database=OrderDb;User Id=postgres;Password=postgres;"
+            - name: RabbitMQ__HostName
+              value: "rabbitmq"
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-api
+  namespace: ecommerce
+  labels:
+    app: order-api
+spec:
+  selector:
+    app: order-api
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP
+
+---
+# =============================================================
+#  PAYMENT API (Ödeme İşlemleri)
+# =============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-api
+  namespace: ecommerce
+  labels:
+    app: payment-api
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-api
+  template:
+    metadata:
+      labels:
+        app: payment-api
+        tier: backend
+    spec:
+      containers:
+        - name: payment-api
+          image: payment-api:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Development"
+            - name: RabbitMQ__HostName
+              value: "rabbitmq"
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-api
+  namespace: ecommerce
+  labels:
+    app: payment-api
+spec:
+  selector:
+    app: payment-api
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP
+
+---
+# =============================================================
+#  API GATEWAY (Ocelot - Tüm Trafiğin Giriş Noktası)
+# =============================================================
+# ocelot.json'daki host isimleri (catalog-api, basket-api, vb.)
+# K8s Service isimleriyle birebir eşleşir, değişiklik gerektirmez.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: ecommerce
+  labels:
+    app: api-gateway
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+        tier: backend
+    spec:
+      containers:
+        - name: api-gateway
+          image: api-gateway:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Development"
+            - name: Identity__Url
+              value: "http://identity-api:8080"
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: ecommerce
+  labels:
+    app: api-gateway
+spec:
+  selector:
+    app: api-gateway
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import { useRouter } from "next/navigation";
+import { API_URL } from "@/lib/api";
 
 interface ProductProps {
   id: string;
@@ -25,7 +26,7 @@ export default function AddToCartButton({ product }: { product: ProductProps }) 
     }
 
     setLoading(true);
-    const apiBase = "http://localhost:8000";
+    const apiBase = API_URL;
     const userName = user.id;
 
     try {

@@ -1,0 +1,229 @@
+# =============================================================
+#  E-COMMERCE KUBERNETES - INGRESS (Nginx Ingress Controller)
+# =============================================================
+# Tek giriş kapısı: e-commerce.local
+#
+# Routing kuralları:
+#   e-commerce.local/              -> Frontend (Next.js)
+#   e-commerce.local/api/(.*)      -> API Gateway (Ocelot) -> /$1
+#   e-commerce.local/signalr/(.*)  -> Order API SignalR Hub -> /$1
+#   seq.e-commerce.local/          -> Seq Loglama UI
+#   rabbitmq.e-commerce.local/     -> RabbitMQ Yönetim Paneli
+#
+# Ön koşul:
+#   Nginx Ingress Controller kurulu olmalı (deploy.sh otomatik kurar).
+#
+# /etc/hosts dosyasına ekleyin:
+#   127.0.0.1  e-commerce.local seq.e-commerce.local rabbitmq.e-commerce.local
+# =============================================================
+
+# =============================================================
+#  1) API GATEWAY INGRESS
+# =============================================================
+# /api/ prefix'i strip edilerek Ocelot Gateway'e iletilir.
+# Örnek: e-commerce.local/api/catalog/products -> api-gateway:8080/catalog/products
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ecommerce-api-ingress
+  namespace: ecommerce
+  labels:
+    app: ecommerce-ingress
+    tier: networking
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "http://e-commerce.local"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: e-commerce.local
+      http:
+        paths:
+          - path: /api/(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 8080
+
+---
+# =============================================================
+#  2) SIGNALR INGRESS (WebSocket Desteği)
+# =============================================================
+# /signalr/ prefix'i strip edilerek Order API'ye iletilir.
+# Örnek: e-commerce.local/signalr/hubs/orderStatus -> order-api:8080/hubs/orderStatus
+# WebSocket bağlantıları için özel timeout ve header ayarları içerir.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ecommerce-signalr-ingress
+  namespace: ecommerce
+  labels:
+    app: ecommerce-ingress
+    tier: networking
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+    # WebSocket desteği (SignalR için kritik)
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/connection-proxy-header: "keep-alive"
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$remote_addr"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "http://e-commerce.local"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: e-commerce.local
+      http:
+        paths:
+          - path: /signalr/(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: order-api
+                port:
+                  number: 8080
+
+---
+# =============================================================
+#  3) FRONTEND INGRESS (Catch-all)
+# =============================================================
+# Diğer tüm istekler Next.js frontend'e yönlendirilir.
+# Bu Ingress en son değerlendirilir (specificity kuralı gereği).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ecommerce-frontend-ingress
+  namespace: ecommerce
+  labels:
+    app: ecommerce-ingress
+    tier: networking
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+    nginx.ingress.kubernetes.io/proxy-buffers-number: "4"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: e-commerce.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ecommerce-web
+                port:
+                  number: 3000
+
+---
+# =============================================================
+#  4) SEQ INGRESS - Merkezi Loglama UI
+# =============================================================
+# seq.e-commerce.local -> Seq Dashboard
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ecommerce-seq-ingress
+  namespace: ecommerce
+  labels:
+    app: ecommerce-ingress
+    tier: networking
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: seq.e-commerce.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ecommerce-seq
+                port:
+                  number: 80
+
+---
+# =============================================================
+#  5) RABBITMQ INGRESS - Mesaj Kuyruğu Yönetim Paneli
+# =============================================================
+# rabbitmq.e-commerce.local -> RabbitMQ Management UI (guest/guest)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ecommerce-rabbitmq-ingress
+  namespace: ecommerce
+  labels:
+    app: ecommerce-ingress
+    tier: networking
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: rabbitmq.e-commerce.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: rabbitmq
+                port:
+                  number: 15672
+
+---
+# =============================================================
+#  6) PROMETHEUS INGRESS - Metrik Toplama UI
+# =============================================================
+# prometheus.e-commerce.local -> Prometheus UI
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ecommerce-prometheus-ingress
+  namespace: ecommerce
+  labels:
+    app: ecommerce-ingress
+    tier: networking
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: prometheus.e-commerce.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: prometheus
+                port:
+                  number: 9090
+
+---
+# =============================================================
+#  7) GRAFANA INGRESS - Monitoring Dashboard
+# =============================================================
+# grafana.e-commerce.local -> Grafana (admin/admin)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ecommerce-grafana-ingress
+  namespace: ecommerce
+  labels:
+    app: ecommerce-ingress
+    tier: networking
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: grafana.e-commerce.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 3000

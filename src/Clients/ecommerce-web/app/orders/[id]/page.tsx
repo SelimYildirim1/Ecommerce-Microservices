@@ -6,6 +6,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/Header";
 import Cookies from "js-cookie";
+import { API_URL } from "@/lib/api";
 
 interface OrderItem {
   productId: string;
@@ -62,7 +63,7 @@ export default function OrderDetailPage() {
           return;
         }
 
-        const res = await fetch(`http://localhost:8000/orders/${user.id}`, {
+        const res = await fetch(`${API_URL}/orders/${user.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 

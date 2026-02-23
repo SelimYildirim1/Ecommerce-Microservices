@@ -1,6 +1,7 @@
 using MassTransit;
 using Payment.API.Consumers;
 using Serilog;
+using Prometheus;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -53,6 +54,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseHttpMetrics(); // Prometheus HTTP metrikleri
 app.MapControllers();
+app.MapMetrics();     // /metrics endpoint'i
 
 app.Run();

@@ -1,6 +1,7 @@
 import AddToCartButton from "@/components/AddToCartButton";
 import Header from "@/components/Header";
 import Link from "next/link";
+import { INTERNAL_API_URL } from "@/lib/api";
 
 interface Product {
   id: string;
@@ -13,7 +14,7 @@ interface Product {
 
 async function getProducts(): Promise<Product[]> {
   try {
-    const res = await fetch('http://api-gateway:8080/catalog/products', {
+    const res = await fetch(`${INTERNAL_API_URL}/catalog/products`, {
       cache: 'no-store',
       next: { revalidate: 0 }
     });

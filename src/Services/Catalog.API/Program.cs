@@ -9,6 +9,7 @@ using Serilog;
 using RabbitMQ.Client;
 using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Prometheus;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -148,5 +149,8 @@ app.MapHealthChecks("/health", new HealthCheckOptions
 {
     ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
 }).AllowAnonymous();
+
+app.UseHttpMetrics(); // Prometheus HTTP metrikleri
+app.MapMetrics();     // /metrics endpoint'i
 
 app.Run();

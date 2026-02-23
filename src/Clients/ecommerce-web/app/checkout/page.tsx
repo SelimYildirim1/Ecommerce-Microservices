@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/Header";
 import Cookies from "js-cookie";
+import { API_URL } from "@/lib/api";
 
 export default function CheckoutPage() {
   const { user } = useAuth();
@@ -64,7 +65,7 @@ export default function CheckoutPage() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-      const res = await fetch("http://localhost:8000/basket/checkout", {
+      const res = await fetch(`${API_URL}/basket/checkout`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

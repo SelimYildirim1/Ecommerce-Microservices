@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Serilog;
+using Prometheus;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -81,5 +82,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.UseHttpMetrics(); // Prometheus HTTP metrikleri
+app.MapMetrics();     // /metrics endpoint'i
 
 app.Run();

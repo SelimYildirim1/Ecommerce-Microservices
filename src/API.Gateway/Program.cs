@@ -4,6 +4,7 @@ using Microsoft.IdentityModel.Tokens; // JWT için gerekli
 using System.Text; // Encoding için gerekli
 using Serilog;
 using Microsoft.AspNetCore.Authorization;
+using Prometheus;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -60,6 +61,9 @@ app.UseHealthChecksUI();
 // 0. Endpoint tabanlı routing middleware
 app.UseRouting();
 //
+// 0.5 Prometheus HTTP metrikleri (routing'den sonra, auth'dan önce)
+app.UseHttpMetrics();
+//
 // 1. CORS: Tarayıcıdan gelen isteklere izin ver
 app.UseCors("CorsPolicy");
 //
@@ -77,6 +81,7 @@ app.UseEndpoints(endpoints =>
         c.UIPath = "/health-ui";
         c.ApiPath = "/health-api";
     }).AllowAnonymous();
+    endpoints.MapMetrics(); // /metrics endpoint'i
 });
 //
 // 5. En son Ocelot gateway

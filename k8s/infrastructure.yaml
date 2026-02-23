@@ -1,0 +1,359 @@
+# =============================================================
+#  E-COMMERCE KUBERNETES - ALTYAPI (Infrastructure)
+# =============================================================
+# Bu dosya projenin çalışması için gereken altyapı servislerini içerir:
+#   - Namespace (ecommerce)
+#   - PostgreSQL (Veritabanı - CatalogDb, IdentityDb, OrderDb)
+#   - Redis (Cache - Sepet verileri)
+#   - RabbitMQ (Mesaj Kuyruğu - Event Bus)
+#   - Seq (Merkezi Loglama)
+#
+# Servis isimleri docker-compose container isimleriyle eşleştirilmiştir
+# böylece uygulama kodunda hiçbir değişiklik gerekmez.
+# =============================================================
+
+# ----- NAMESPACE -----
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ecommerce
+  labels:
+    project: ecommerce
+
+---
+# =============================================================
+#  POSTGRESQL
+# =============================================================
+
+# PostgreSQL - Init Script (Birden fazla veritabanı oluşturur)
+# CatalogDb, POSTGRES_DB ile otomatik oluşturulur.
+# IdentityDb ve OrderDb bu script ile oluşturulur.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-scripts
+  namespace: ecommerce
+data:
+  init-databases.sh: |
+    #!/bin/bash
+    set -e
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+      CREATE DATABASE "IdentityDb";
+      CREATE DATABASE "OrderDb";
+    EOSQL
+
+---
+# PostgreSQL - Kalıcı Depolama (Persistent Volume Claim)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: ecommerce
+  labels:
+    app: postgres-db
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# PostgreSQL - Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-db
+  namespace: ecommerce
+  labels:
+    app: postgres-db
+    tier: infrastructure
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-db
+  template:
+    metadata:
+      labels:
+        app: postgres-db
+        tier: infrastructure
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: "postgres"
+            - name: POSTGRES_PASSWORD
+              value: "postgres"
+            - name: POSTGRES_DB
+              value: "CatalogDb"
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+            - name: init-scripts
+              mountPath: /docker-entrypoint-initdb.d
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+      volumes:
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+        - name: init-scripts
+          configMap:
+            name: postgres-init-scripts
+            defaultMode: 0755
+
+---
+# PostgreSQL - Service
+# İsim: "postgres-db" (docker-compose servis adıyla aynı)
+# Connection string'lerde Server=postgres-db olarak kullanılır
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-db
+  namespace: ecommerce
+  labels:
+    app: postgres-db
+spec:
+  selector:
+    app: postgres-db
+  ports:
+    - port: 5432
+      targetPort: 5432
+  type: ClusterIP
+
+---
+# =============================================================
+#  REDIS
+# =============================================================
+
+# Redis - Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-db
+  namespace: ecommerce
+  labels:
+    app: redis-db
+    tier: infrastructure
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis-db
+  template:
+    metadata:
+      labels:
+        app: redis-db
+        tier: infrastructure
+    spec:
+      containers:
+        - name: redis
+          image: redis:alpine
+          ports:
+            - containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "250m"
+
+---
+# Redis - Service
+# İsim: "redis-db" (docker-compose servis adıyla aynı)
+# ConnectionStrings__Redis=redis-db:6379 olarak kullanılır
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-db
+  namespace: ecommerce
+  labels:
+    app: redis-db
+spec:
+  selector:
+    app: redis-db
+  ports:
+    - port: 6379
+      targetPort: 6379
+  type: ClusterIP
+
+---
+# =============================================================
+#  RABBITMQ
+# =============================================================
+
+# RabbitMQ - Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+  namespace: ecommerce
+  labels:
+    app: rabbitmq
+    tier: infrastructure
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+        tier: infrastructure
+    spec:
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:3-management
+          ports:
+            - containerPort: 5672
+              name: amqp
+            - containerPort: 15672
+              name: management
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              value: "guest"
+            - name: RABBITMQ_DEFAULT_PASS
+              value: "guest"
+          readinessProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "check_port_connectivity"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "status"]
+            initialDelaySeconds: 40
+            periodSeconds: 15
+            timeoutSeconds: 10
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+---
+# RabbitMQ - Service
+# İsim: "rabbitmq" (docker-compose servis adı ve hostname ile aynı)
+# RabbitMQ__HostName=rabbitmq olarak kullanılır
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: ecommerce
+  labels:
+    app: rabbitmq
+spec:
+  selector:
+    app: rabbitmq
+  ports:
+    - port: 5672
+      targetPort: 5672
+      name: amqp
+    - port: 15672
+      targetPort: 15672
+      name: management
+  type: ClusterIP
+
+---
+# =============================================================
+#  SEQ (Merkezi Loglama)
+# =============================================================
+
+# Seq - Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ecommerce-seq
+  namespace: ecommerce
+  labels:
+    app: ecommerce-seq
+    tier: infrastructure
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ecommerce-seq
+  template:
+    metadata:
+      labels:
+        app: ecommerce-seq
+        tier: infrastructure
+    spec:
+      containers:
+        - name: seq
+          image: datalust/seq:latest
+          ports:
+            - containerPort: 80
+              name: ui
+            - containerPort: 5341
+              name: ingestion
+          env:
+            - name: ACCEPT_EULA
+              value: "Y"
+            - name: SEQ_FIRSTRUN_ADMINPASSWORD
+              value: "kRd4gGetLSybzd6"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+---
+# Seq - Service
+# İsim: "ecommerce-seq" (appsettings.json'daki Serilog serverUrl ile aynı)
+# Tüm servisler http://ecommerce-seq adresine log gönderir
+apiVersion: v1
+kind: Service
+metadata:
+  name: ecommerce-seq
+  namespace: ecommerce
+  labels:
+    app: ecommerce-seq
+spec:
+  selector:
+    app: ecommerce-seq
+  ports:
+    - port: 80
+      targetPort: 80
+      name: ui
+    - port: 5341
+      targetPort: 5341
+      name: ingestion
+  type: ClusterIP

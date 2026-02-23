@@ -1,0 +1,183 @@
+# =============================================================
+#  E-COMMERCE KUBERNETES - HPA (Horizontal Pod Autoscaler)
+# =============================================================
+# Otomatik ölçekleme: CPU kullanımı %70'i geçtiğinde yeni pod'lar
+# oluşturulur, yük azaldığında pod sayısı otomatik düşürülür.
+#
+# Ön koşul: Metrics Server kurulu olmalıdır (deploy.sh otomatik kurar).
+#
+# Kontrol komutları:
+#   kubectl get hpa -n ecommerce
+#   kubectl describe hpa -n ecommerce
+#   kubectl top pods -n ecommerce
+#
+# Senaryo: Black Friday'de Order API'ye yoğun trafik geldiğinde
+# Kubernetes otomatik olarak 5'e kadar pod oluşturur.
+# Yük azaldığında tekrar 1 pod'a düşer.
+# =============================================================
+
+# =============================================================
+#  ORDER API - HPA (En kritik servis: Sipariş yoğunluğu)
+# =============================================================
+# Black Friday senaryosu:
+#   CPU %70 → 2 pod | CPU %90 → 3-4 pod | Max 5 pod
+#   Yük azalınca → 5 dakika sonra scale-down başlar
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: order-api-hpa
+  namespace: ecommerce
+  labels:
+    app: order-api
+    tier: backend
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: order-api
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+
+---
+# =============================================================
+#  CATALOG API - HPA (Ürün listeleme yoğunluğu)
+# =============================================================
+# Ürün sayfaları en çok ziyaret edilen sayfalardır.
+# Stok kontrolü de bu servis üzerinden yapılır.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: catalog-api-hpa
+  namespace: ecommerce
+  labels:
+    app: catalog-api
+    tier: backend
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: catalog-api
+  minReplicas: 1
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+
+---
+# =============================================================
+#  BASKET API - HPA (Sepet işlemleri yoğunluğu)
+# =============================================================
+# Kullanıcılar ürün ekleyip çıkardıkça sepet API'si yoğunlaşır.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: basket-api-hpa
+  namespace: ecommerce
+  labels:
+    app: basket-api
+    tier: backend
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: basket-api
+  minReplicas: 1
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+
+---
+# =============================================================
+#  API GATEWAY - HPA (Tüm trafiğin giriş noktası)
+# =============================================================
+# Tüm istekler buradan geçtiği için darboğaz olabilir.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api-gateway-hpa
+  namespace: ecommerce
+  labels:
+    app: api-gateway
+    tier: backend
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-gateway
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60

@@ -9,6 +9,7 @@ using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using RabbitMQ.Client;
 using Order.API.Hubs;
+using Prometheus;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -146,19 +147,33 @@ builder.Services.AddMassTransit(config =>
 
 var app = builder.Build();
 
-// Veritabanı Migration (Otomatik Tablo Oluşturma)
+// Veritabanı Migration - PostgreSQL hazır olana kadar tekrar dene (Catalog API ile aynı mantık)
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
-    try
+    var logger = services.GetRequiredService<ILogger<Program>>();
+    var context = services.GetRequiredService<OrderDbContext>();
+    const int maxRetries = 10;
+    var delay = TimeSpan.FromSeconds(3);
+
+    for (int i = 1; i <= maxRetries; i++)
     {
-        var context = services.GetRequiredService<OrderDbContext>();
-        context.Database.Migrate(); // Veritabanı yoksa oluşturur
-    }
-    catch (Exception ex)
-    {
-        var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "Veritabanı oluşturulurken hata çıktı.");
+        try
+        {
+            context.Database.Migrate();
+            logger.LogInformation("OrderDb veritabanı migration tamamlandı.");
+            break;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "OrderDb migration denemesi {Attempt}/{Max} başarısız. {Delay}s sonra tekrar denenecek.", i, maxRetries, delay.TotalSeconds);
+            if (i == maxRetries)
+            {
+                logger.LogError(ex, "OrderDb migration {Max} denemeden sonra başarısız. Uygulama başlamayacak.", maxRetries);
+                throw;
+            }
+            Thread.Sleep(delay);
+        }
     }
 }
 
@@ -183,5 +198,8 @@ app.MapHealthChecks("/health", new HealthCheckOptions
 {
     ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
 }).AllowAnonymous();
+
+app.UseHttpMetrics(); // Prometheus HTTP metrikleri
+app.MapMetrics();     // /metrics endpoint'i
 
 app.Run();

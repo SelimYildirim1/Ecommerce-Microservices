@@ -1,0 +1,61 @@
+# =============================================================
+#  ArgoCD Application - E-Commerce
+# =============================================================
+# Bu dosya ArgoCD'ye "k8s/ klasörünü izle ve değişiklik olunca
+# otomatik deploy et" der.
+#
+# ArgoCD şunu yapar:
+#   1. GitHub repo'sundaki k8s/ klasörünü izler
+#   2. YAML'larda değişiklik algılar (örn: yeni image tag)
+#   3. Kubernetes'e otomatik apply eder
+#   4. Dashboard'dan durumu gösterir
+# =============================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ecommerce
+  namespace: argocd
+  # ArgoCD silindiğinde uygulama kaynaklarını silme
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  # ---- KAYNAK: GitHub Repo ----
+  source:
+    # ⚠️ Kendi GitHub repo URL'nizi yazın
+    repoURL: https://github.com/SelimYildirim1/Ecommerce-Microservices.git
+    targetRevision: main
+    path: k8s
+    # Sadece uygulama YAML'larını izle (scriptleri değil)
+    directory:
+      include: "*.yaml"
+      exclude: "argocd/*"
+
+  # ---- HEDEF: Kubernetes Cluster ----
+  destination:
+    # Lokal cluster (ArgoCD'nin çalıştığı cluster)
+    server: https://kubernetes.default.svc
+    namespace: ecommerce
+
+  # ---- SYNC POLİTİKASI ----
+  syncPolicy:
+    # Otomatik sync: repo değişince otomatik deploy et
+    automated:
+      # Prune: Repo'dan silinen kaynakları K8s'ten de sil
+      prune: true
+      # Self-heal: Biri K8s'te manuel değişiklik yaparsa geri al
+      selfHeal: true
+      # Namespace yoksa oluştur
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      # Retry: Hata olursa tekrar dene
+    retry:
+      limit: 3
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

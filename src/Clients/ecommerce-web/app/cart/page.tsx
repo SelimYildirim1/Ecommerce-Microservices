@@ -2,6 +2,7 @@ import CartClient from "@/components/CartClient";
 import Header from "@/components/Header";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { INTERNAL_API_URL } from "@/lib/api";
 
 function decodeJwtPayload(token: string): any {
   const parts = token.split(".");
@@ -26,7 +27,7 @@ async function getUserIdFromCookie() {
 
 async function getBasket(userId: string) {
   try {
-    const res = await fetch(`http://api-gateway:8080/basket/${userId}`, {
+    const res = await fetch(`${INTERNAL_API_URL}/basket/${userId}`, {
       cache: "no-store",
     });
     if (!res.ok) return null;
