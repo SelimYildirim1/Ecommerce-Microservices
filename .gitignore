@@ -28,4 +28,4 @@ bin/
 
 # Environment config
 .env
-data/
+/data/
