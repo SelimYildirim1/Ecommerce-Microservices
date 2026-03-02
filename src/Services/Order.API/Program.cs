@@ -10,6 +10,8 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using RabbitMQ.Client;
 using Order.API.Hubs;
 using Prometheus;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -52,6 +54,24 @@ builder.Host.UseSerilog((context, config) =>
 {
     config.ReadFrom.Configuration(context.Configuration); 
 });
+
+// -------------------------------------------------------
+// DISTRIBUTED TRACING (OpenTelemetry → Jaeger)
+// -------------------------------------------------------
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService("Order.API"))
+    .WithTracing(tracing =>
+    {
+        tracing
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation()
+            .AddEntityFrameworkCoreInstrumentation()
+            .AddOtlpExporter(options =>
+            {
+                options.Endpoint = new Uri(
+                    builder.Configuration["OpenTelemetry:Endpoint"] ?? "http://localhost:4317");
+            });
+    });
 
 // 1. Controller ve Swagger
 builder.Services.AddControllers();

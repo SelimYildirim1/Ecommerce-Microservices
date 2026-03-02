@@ -24,3 +24,11 @@ public class AuthResponse
     public string UserName { get; set; }
     public string Token { get; set; }
 }
+
+// Admin dashboard için kullanıcı listesi DTO'su
+public class UserListDto
+{
+    public string Id { get; set; } = default!;
+    public string UserName { get; set; } = default!;
+    public string Email { get; set; } = default!;
+}

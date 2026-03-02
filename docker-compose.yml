@@ -54,6 +54,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       # Docker içinde Postgres'e 'localhost' diyemeyiz, 'postgres-db' demeliyiz
       - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=IdentityDb;User Id=postgres;Password=postgres;
+      - OpenTelemetry__Endpoint=http://ecommerce-jaeger:4317
     ports:
       - "5001:8080"
     depends_on:
@@ -71,6 +72,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=CatalogDb;User Id=postgres;Password=postgres;
       - RabbitMQ__HostName=rabbitmq
+      - OpenTelemetry__Endpoint=http://ecommerce-jaeger:4317
     ports:
       - "5002:8080"
     depends_on:
@@ -92,6 +94,7 @@ services:
       # Basket API, Catalog API ile konuşurken servis ismini kullanmalı!
       - Services__CatalogApi=http://catalog-api:8080
       - RabbitMQ__HostName=rabbitmq
+      - OpenTelemetry__Endpoint=http://ecommerce-jaeger:4317
     ports:
       - "5038:8080"
     depends_on:
@@ -110,6 +113,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=OrderDb;User Id=postgres;Password=postgres;
       - RabbitMQ__HostName=rabbitmq
+      - OpenTelemetry__Endpoint=http://ecommerce-jaeger:4317
     ports:
       - "5059:8080"
     depends_on:
@@ -128,10 +132,31 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - RabbitMQ__HostName=rabbitmq
+      - OpenTelemetry__Endpoint=http://ecommerce-jaeger:4317
     ports:
       - "5277:8080"
     depends_on:
       - rabbitmq
+    networks:
+      - ecommerce-network
+
+  shopping.aggregator:
+    build:
+      context: .
+      dockerfile: src/Shopping.Aggregator/Dockerfile
+    container_name: shopping-aggregator
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - Services__OrderApi=http://order-api:8080
+      - Services__CatalogApi=http://catalog-api:8080
+      - Services__IdentityApi=http://identity-api:8080
+      - OpenTelemetry__Endpoint=http://ecommerce-jaeger:4317
+    ports:
+      - "5100:8080"
+    depends_on:
+      - identity.api
+      - catalog.api
+      - order.api
     networks:
       - ecommerce-network
 
@@ -143,6 +168,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - Identity__Url=http://identity-api:8080
+      - OpenTelemetry__Endpoint=http://ecommerce-jaeger:4317
     ports:
       - "8000:8080"
     depends_on:
@@ -150,6 +176,7 @@ services:
       - catalog.api
       - basket.api
       - order.api
+      - shopping.aggregator
     networks:
       - ecommerce-network
 
@@ -194,6 +221,20 @@ services:
     ports:
       - "5340:80"
       - "5341:5341"
+    networks:
+      - ecommerce-network
+
+  # ----------------DISTRIBUTED TRACING (Jaeger)----------------
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: ecommerce-jaeger
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686"   # Jaeger UI
+      - "4317:4317"     # OTLP gRPC
+      - "4318:4318"     # OTLP HTTP
     networks:
       - ecommerce-network
 

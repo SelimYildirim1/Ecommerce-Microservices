@@ -7,6 +7,7 @@
 #   - Redis (Cache - Sepet verileri)
 #   - RabbitMQ (Mesaj Kuyruğu - Event Bus)
 #   - Seq (Merkezi Loglama)
+#   - Jaeger (Distributed Tracing - OpenTelemetry)
 #
 # Servis isimleri docker-compose container isimleriyle eşleştirilmiştir
 # böylece uygulama kodunda hiçbir değişiklik gerekmez.
@@ -356,4 +357,89 @@ spec:
     - port: 5341
       targetPort: 5341
       name: ingestion
+  type: ClusterIP
+
+---
+# =============================================================
+#  JAEGER (Distributed Tracing - OpenTelemetry)
+# =============================================================
+
+# Jaeger - Deployment (All-in-One: Collector + Query + UI)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger
+  namespace: ecommerce
+  labels:
+    app: jaeger
+    tier: infrastructure
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jaeger
+  template:
+    metadata:
+      labels:
+        app: jaeger
+        tier: infrastructure
+    spec:
+      containers:
+        - name: jaeger
+          image: jaegertracing/all-in-one:latest
+          ports:
+            - containerPort: 16686
+              name: ui
+            - containerPort: 4317
+              name: otlp-grpc
+            - containerPort: 4318
+              name: otlp-http
+          env:
+            - name: COLLECTOR_OTLP_ENABLED
+              value: "true"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 16686
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 16686
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+---
+# Jaeger - Service
+# İsim: "jaeger" 
+# Servisler OpenTelemetry trace'lerini http://jaeger:4317 adresine gönderir
+# UI: http://jaeger:16686
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger
+  namespace: ecommerce
+  labels:
+    app: jaeger
+spec:
+  selector:
+    app: jaeger
+  ports:
+    - port: 16686
+      targetPort: 16686
+      name: ui
+    - port: 4317
+      targetPort: 4317
+      name: otlp-grpc
+    - port: 4318
+      targetPort: 4318
+      name: otlp-http
   type: ClusterIP

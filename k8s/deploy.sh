@@ -43,7 +43,7 @@ echo ""
 
 # -------------------- 1. ALTYAPI --------------------
 echo "[1/4] Altyapi servisleri kuruluyor..."
-echo "      (PostgreSQL, Redis, RabbitMQ, Seq)"
+echo "      (PostgreSQL, Redis, RabbitMQ, Seq, Jaeger)"
 kubectl apply -f k8s/infrastructure.yaml
 echo ""
 
@@ -65,6 +65,12 @@ kubectl wait --namespace=ecommerce \
   --for=condition=ready pod \
   -l app=rabbitmq \
   --timeout=120s 2>/dev/null || echo "      (RabbitMQ henuz hazir degil, devam ediliyor...)"
+
+echo "      Jaeger'in hazir olmasi bekleniyor..."
+kubectl wait --namespace=ecommerce \
+  --for=condition=ready pod \
+  -l app=jaeger \
+  --timeout=60s 2>/dev/null || echo "      (Jaeger henuz hazir degil, devam ediliyor...)"
 
 echo ""
 
@@ -124,8 +130,8 @@ echo "============================================="
 echo ""
 
 # /etc/hosts kontrolu
-HOSTS_ENTRY="127.0.0.1  e-commerce.local seq.e-commerce.local rabbitmq.e-commerce.local prometheus.e-commerce.local grafana.e-commerce.local"
-if grep -q "grafana.e-commerce.local" /etc/hosts 2>/dev/null; then
+HOSTS_ENTRY="127.0.0.1  e-commerce.local seq.e-commerce.local rabbitmq.e-commerce.local prometheus.e-commerce.local grafana.e-commerce.local jaeger.e-commerce.local"
+if grep -q "jaeger.e-commerce.local" /etc/hosts 2>/dev/null; then
   echo "  /etc/hosts: e-commerce.local zaten tanimli."
 else
   echo "  UYARI: /etc/hosts dosyasina asagidaki satiri ekleyin:"
@@ -158,6 +164,7 @@ echo "  Seq Loglama:      http://seq.e-commerce.local"
 echo "  RabbitMQ Panel:   http://rabbitmq.e-commerce.local  (guest/guest)"
 echo "  Prometheus:       http://prometheus.e-commerce.local"
 echo "  Grafana:          http://grafana.e-commerce.local   (admin/admin)"
+echo "  Jaeger Tracing:   http://jaeger.e-commerce.local"
 echo ""
 echo "  Debug icin port-forward (opsiyonel):"
 echo "    ./k8s/port-forward.sh"

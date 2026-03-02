@@ -29,7 +29,7 @@ public class StockNotReservedConsumer : IConsumer<StockNotReservedEvent>
             return;
         }
 
-        order.OrderStatus = "StockFailed"; // Stok yetersiz yüzünden iptal
+        order.SetStatus("StockFailed");
         await _dbContext.SaveChangesAsync();
 
         _logger.LogInformation("Sipariş durumu güncellendi: StockFailed. OrderId={OrderId}", msg.OrderId);

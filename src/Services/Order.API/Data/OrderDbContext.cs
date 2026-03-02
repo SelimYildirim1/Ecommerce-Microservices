@@ -1,8 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Order.API.Entities;
+using Order.API.Domain.AggregatesModel.OrderAggregate;
 
-// ÇÖZÜM BURADA: "Order" kelimesi karışmasın diye ona "OrderEntity" takma adını veriyoruz.
-using OrderEntity = Order.API.Entities.Order; 
+// "Order" kelimesi karışmasın diye "OrderEntity" takma adı
+using OrderEntity = Order.API.Entities.Order;
 
 namespace Order.API.Data;
 
@@ -12,18 +13,32 @@ public class OrderDbContext : DbContext
     {
     }
 
-    // Burada artık "Order" değil, yukarıda tanımladığımız "OrderEntity"yi kullanıyoruz.
     public DbSet<OrderEntity> Orders { get; set; }
     public DbSet<OrderItem> OrderItems { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-        
-        // Burada da "OrderEntity" kullanıyoruz
-        modelBuilder.Entity<OrderEntity>()
-            .HasMany(o => o.OrderItems)
-            .WithOne(i => i.Order)
-            .HasForeignKey(i => i.OrderId);
+
+        modelBuilder.Entity<OrderEntity>(builder =>
+        {
+            // Address value object'i Owned Type olarak yapılandır
+            builder.OwnsOne(o => o.Address, a =>
+            {
+                a.Property(p => p.Street).HasColumnName("Street");
+                a.Property(p => p.City).HasColumnName("City");
+                a.Property(p => p.State).HasColumnName("State");
+                a.Property(p => p.Country).HasColumnName("Country");
+                a.Property(p => p.ZipCode).HasColumnName("ZipCode");
+            });
+
+            // Private backing field üzerinden OrderItems ilişkisi
+            var navigation = builder.Metadata.FindNavigation(nameof(OrderEntity.OrderItems));
+            navigation?.SetPropertyAccessMode(PropertyAccessMode.Field);
+
+            builder.HasMany(typeof(OrderItem), "_orderItems")
+                .WithOne(nameof(OrderItem.Order))
+                .HasForeignKey(nameof(OrderItem.OrderId));
+        });
     }
 }

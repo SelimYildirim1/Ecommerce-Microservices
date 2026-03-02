@@ -10,6 +10,8 @@ using RabbitMQ.Client;
 using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Prometheus;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -42,6 +44,24 @@ builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration); 
 });
 
+// -------------------------------------------------------
+// DISTRIBUTED TRACING (OpenTelemetry → Jaeger)
+// -------------------------------------------------------
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService("Catalog.API"))
+    .WithTracing(tracing =>
+    {
+        tracing
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation()
+            .AddEntityFrameworkCoreInstrumentation()
+            .AddOtlpExporter(options =>
+            {
+                options.Endpoint = new Uri(
+                    builder.Configuration["OpenTelemetry:Endpoint"] ?? "http://localhost:4317");
+            });
+    });
+
 // --- SERVİSLERİN EKLENDİĞİ BÖLÜM (DI Container) ---
 
 // 1. Controller desteğini ekle
@@ -73,6 +93,7 @@ builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 builder.Services.AddMassTransit(config =>
 {
     config.AddConsumer<OrderCreatedConsumer>();
+    config.AddConsumer<PaymentFailedConsumer>();
 
     config.UsingRabbitMq((ctx, _config) =>
     {
@@ -83,13 +104,19 @@ builder.Services.AddMassTransit(config =>
             h.Password("guest");
         });
 
-        // 👇 GLOBAL MESAJ TEKRAR (RETRY) POLİTİKASI
+        // GLOBAL MESAJ TEKRAR (RETRY) POLİTİKASI
         _config.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
         
         // Stok düşürme için OrderCreatedEvent'i dinliyoruz
         _config.ReceiveEndpoint("catalog-stock-update-queue", e =>
         {
             e.ConfigureConsumer<OrderCreatedConsumer>(ctx);
+        });
+
+        // Ödeme başarısız olursa stok geri ekleme
+        _config.ReceiveEndpoint("catalog-payment-failed-queue", e =>
+        {
+            e.ConfigureConsumer<PaymentFailedConsumer>(ctx);
         });
     });
 });

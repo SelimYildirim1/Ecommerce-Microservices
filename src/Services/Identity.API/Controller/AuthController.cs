@@ -1,6 +1,7 @@
 using Identity.API.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -23,6 +24,22 @@ public class AuthController : ControllerBase
         _userManager = userManager;
         _signInManager = signInManager;
         _configuration = configuration;
+    }
+
+    // Admin: Tüm kullanıcıları getirir (Aggregator tarafından kullanılır)
+    [HttpGet("users")]
+    public async Task<ActionResult<List<UserListDto>>> GetAllUsers()
+    {
+        var users = await _userManager.Users
+            .Select(u => new UserListDto
+            {
+                Id = u.Id,
+                UserName = u.UserName!,
+                Email = u.Email!
+            })
+            .ToListAsync();
+
+        return Ok(users);
     }
 
     [HttpPost("login")]

@@ -5,6 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Swashbuckle.AspNetCore;
 using Serilog;
 using Prometheus;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,6 +15,23 @@ builder.Host.UseSerilog((context, config) =>
 {
     config.ReadFrom.Configuration(context.Configuration); 
 });
+
+// -------------------------------------------------------
+// DISTRIBUTED TRACING (OpenTelemetry → Jaeger)
+// -------------------------------------------------------
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService("Basket.API"))
+    .WithTracing(tracing =>
+    {
+        tracing
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation()
+            .AddOtlpExporter(options =>
+            {
+                options.Endpoint = new Uri(
+                    builder.Configuration["OpenTelemetry:Endpoint"] ?? "http://localhost:4317");
+            });
+    });
 
 // --- 1. Servis Kayıtları (DI Container) ---
 

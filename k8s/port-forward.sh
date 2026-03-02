@@ -9,6 +9,7 @@
 #   API Gateway:    http://e-commerce.local/api/
 #   Seq:            http://seq.e-commerce.local
 #   RabbitMQ:       http://rabbitmq.e-commerce.local
+#   Jaeger:         http://jaeger.e-commerce.local
 #
 # Bu script sadece debug/geliştirme araçları için port-forward açar:
 #   - PostgreSQL (DBeaver vb. araçlarla doğrudan erişim)
@@ -80,15 +81,19 @@ if [ "$1" = "--all" ]; then
   # Seq UI: localhost:5340
   echo "  [Seq Loglama]      http://localhost:5340"
   kubectl port-forward svc/ecommerce-seq 5340:80 -n $NAMESPACE > /dev/null 2>&1 &
+
+  # Jaeger UI: localhost:16686
+  echo "  [Jaeger Tracing]   http://localhost:16686"
+  kubectl port-forward svc/jaeger 16686:16686 -n $NAMESPACE > /dev/null 2>&1 &
 fi
 
 # ==========================================
 #  DEBUG PORTLARI (her zaman açılır)
 # ==========================================
 
-# PostgreSQL: localhost:5434
-echo "  [PostgreSQL]       localhost:5434"
-kubectl port-forward svc/postgres-db 5434:5432 -n $NAMESPACE > /dev/null 2>&1 &
+# PostgreSQL: localhost:5436
+echo "  [PostgreSQL]       localhost:5436"
+kubectl port-forward svc/postgres-db 5436:5432 -n $NAMESPACE > /dev/null 2>&1 &
 
 # Redis: localhost:6379
 echo "  [Redis]            localhost:6379"
@@ -111,6 +116,7 @@ else
   echo "    API:            http://e-commerce.local/api/"
   echo "    Seq:            http://seq.e-commerce.local"
   echo "    RabbitMQ:       http://rabbitmq.e-commerce.local"
+  echo "    Jaeger:         http://jaeger.e-commerce.local"
   echo ""
   echo "  Debug portlari:"
   echo "    PostgreSQL:     localhost:5434"
