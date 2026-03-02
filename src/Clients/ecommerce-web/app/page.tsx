@@ -3,13 +3,26 @@ import Header from "@/components/Header";
 import Link from "next/link";
 import { INTERNAL_API_URL } from "@/lib/api";
 
+interface Variant {
+  id: string;
+  sku: string;
+  price: number;
+  stockQuantity: number;
+  specifics: Record<string, unknown> | null;
+  isActive: boolean;
+}
+
 interface Product {
   id: string;
   name: string;
   description: string;
+  categoryName: string;
+  brandName: string;
+  primaryImageUrl: string | null;
+  isActive: boolean;
   price: number;
-  pictureUrl: string;
   stock: number;
+  variants: Variant[];
 }
 
 async function getProducts(): Promise<Product[]> {
@@ -19,10 +32,25 @@ async function getProducts(): Promise<Product[]> {
       next: { revalidate: 0 }
     });
     if (!res.ok) return [];
-    return await res.json();
+    const data = await res.json();
+    // API may return { $values: [...] } wrapper or plain array
+    const items = Array.isArray(data) ? data : (data?.$values ?? data?.value ?? []);
+    return Array.isArray(items) ? items : [];
   } catch (error) {
     return [];
   }
+}
+
+function getPrice(product: Product): number {
+  // Direct price field from API (computed from first variant)
+  const directPrice = Number(product.price);
+  if (!isNaN(directPrice) && directPrice > 0) return directPrice;
+  // Fallback: try variants array
+  if (product.variants?.length > 0) {
+    const variantPrice = Number(product.variants[0].price);
+    if (!isNaN(variantPrice)) return variantPrice;
+  }
+  return 0;
 }
 
 export default async function Home() {
@@ -79,9 +107,9 @@ export default async function Home() {
                 {/* Product Image - Trendyol style tall image */}
                 <Link href={`/products/${product.id}`} className="block">
                   <div className="aspect-[3/4] bg-muted relative overflow-hidden">
-                    {product.pictureUrl ? (
+                    {(product.primaryImageUrl || (product as unknown as Record<string, unknown>)['pictureUrl']) ? (
                       <img
-                        src={product.pictureUrl}
+                        src={(product.primaryImageUrl || (product as unknown as Record<string, unknown>)['pictureUrl']) as string}
                         alt={product.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
@@ -109,7 +137,7 @@ export default async function Home() {
 
                   <div className="mt-3 flex items-center justify-between gap-2">
                     <span className="text-base font-bold text-foreground">
-                      {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(product.price)}
+                      {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(getPrice(product))}
                     </span>
                   </div>
 
@@ -118,7 +146,7 @@ export default async function Home() {
                       product={{
                         id: product.id,
                         name: product.name,
-                        price: product.price
+                        price: getPrice(product)
                       }}
                     />
                   </div>

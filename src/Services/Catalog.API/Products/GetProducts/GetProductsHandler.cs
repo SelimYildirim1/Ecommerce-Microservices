@@ -15,25 +15,29 @@ public class GetProductsHandler : IRequestHandler<GetProductsQuery, IEnumerable<
 
     public async Task<IEnumerable<ProductDto>> Handle(GetProductsQuery query, CancellationToken cancellationToken)
     {
-        // PERFORMANS TAKTİĞİ: .AsNoTracking()
-        // Okuma yaparken EF Core'a "bunu takip etme, değişiklik yapmayacağım" deriz.
-        // Bu sayede sorgu çok daha hızlı çalışır ve RAM tüketimi azalır.
-        
         var products = await _context.Products
-            .AsNoTracking() 
-            .OrderBy(p => p.Name) // İsme göre sırala
+            .AsNoTracking()
+            .Include(p => p.Category)
+            .Include(p => p.Brand)
+            .Include(p => p.Variants.Where(v => v.IsActive))
+            .Include(p => p.Images.Where(i => i.IsPrimary))
+            .Where(p => p.IsActive)
+            .OrderBy(p => p.Name)
             .ToListAsync(cancellationToken);
 
-        // Entity -> DTO Dönüşümü (Mapping)
-        // İleride burayı Mapster kütüphanesiyle otomatikleştireceğiz.
-        var productDtos = products.Select(p => new ProductDto(
-            p.Id, 
-            p.Name, 
-            p.Description, 
-            p.Price, 
-            p.PictureUrl, 
-            p.StockQuantity));
-
-        return productDtos;
+        return products.Select(p => new ProductDto(
+            p.Id,
+            p.Name,
+            p.Description,
+            p.Category.Name,
+            p.Brand.Name,
+            p.Images.FirstOrDefault()?.Url,
+            p.IsActive,
+            p.Variants.Where(v => v.IsActive).Select(v => v.Price).FirstOrDefault(),
+            p.Variants.Where(v => v.IsActive).Sum(v => v.StockQuantity),
+            p.Variants.Select(v => new VariantDto(
+                v.Id, v.Sku, v.Price, v.StockQuantity, v.Specifics, v.IsActive
+            )).ToList()
+        ));
     }
 }

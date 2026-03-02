@@ -7,7 +7,7 @@ namespace Catalog.API.Consumers;
 
 /// <summary>
 /// Ödeme başarısız olduğunda stoğu geri ekler.
-/// Bu, Saga Pattern'ın "Compensating Transaction" (Telafi Edici İşlem) parçasıdır.
+/// Saga Pattern'ın "Compensating Transaction" parçasıdır.
 /// </summary>
 public class PaymentFailedConsumer : IConsumer<PaymentFailedEvent>
 {
@@ -23,7 +23,7 @@ public class PaymentFailedConsumer : IConsumer<PaymentFailedEvent>
     public async Task Consume(ConsumeContext<PaymentFailedEvent> context)
     {
         var msg = context.Message;
-        _logger.LogWarning("⚠️ PaymentFailedEvent alındı! OrderId={OrderId}, Sebep={Reason}",
+        _logger.LogWarning("PaymentFailedEvent alındı! OrderId={OrderId}, Sebep={Reason}",
             msg.OrderId, msg.Reason);
 
         if (msg.OrderItems == null || msg.OrderItems.Count == 0)
@@ -32,36 +32,32 @@ public class PaymentFailedConsumer : IConsumer<PaymentFailedEvent>
             return;
         }
 
-        _logger.LogInformation("🔄 STOK GERİ EKLEME BAŞLADI (Compensating Transaction)");
+        _logger.LogInformation("STOK GERİ EKLEME BAŞLADI (Compensating Transaction)");
 
         foreach (var item in msg.OrderItems)
         {
-            if (string.IsNullOrEmpty(item.ProductId))
+            if (string.IsNullOrEmpty(item.ProductId)) continue;
+            if (!Guid.TryParse(item.ProductId, out var variantId)) continue;
+
+            // Stok artık varyant üzerinde
+            var variant = await _context.ProductVariants
+                .Include(v => v.Product)
+                .FirstOrDefaultAsync(v => v.Id == variantId, context.CancellationToken);
+
+            if (variant == null)
             {
-                _logger.LogWarning("ProductId boş, atlanıyor.");
-                continue;
-            }
-            if (!Guid.TryParse(item.ProductId, out var productId))
-            {
-                _logger.LogWarning("Geçersiz ProductId: {ProductId}", item.ProductId);
+                _logger.LogWarning("Varyant bulunamadı, stok geri eklenemedi. VariantId={VariantId}", item.ProductId);
                 continue;
             }
 
-            var product = await _context.Products.FirstOrDefaultAsync(p => p.Id == productId, context.CancellationToken);
-            if (product == null)
-            {
-                _logger.LogWarning("Ürün bulunamadı, stok geri eklenemedi. ProductId={ProductId}", item.ProductId);
-                continue;
-            }
+            var previousStock = variant.StockQuantity;
+            variant.StockQuantity += item.Quantity;
 
-            var previousStock = product.StockQuantity;
-            product.StockQuantity += item.Quantity;  // STOK GERİ EKLEME
-            
-            _logger.LogInformation("🔄 STOK GERİ EKLENDİ! ProductId={ProductId}, {Previous} -> {New} (+{Qty})",
-                item.ProductId, previousStock, product.StockQuantity, item.Quantity);
+            _logger.LogInformation("STOK GERİ EKLENDİ! {ProductName} (SKU: {Sku}), {Previous} -> {New} (+{Qty})",
+                variant.Product.Name, variant.Sku, previousStock, variant.StockQuantity, item.Quantity);
         }
 
         await _context.SaveChangesAsync(context.CancellationToken);
-        _logger.LogInformation("✅ Telafi işlemi tamamlandı. Stoklar geri eklendi. OrderId={OrderId}", msg.OrderId);
+        _logger.LogInformation("Telafi işlemi tamamlandı. Stoklar geri eklendi. OrderId={OrderId}", msg.OrderId);
     }
 }

@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/API.Gateway/API.Gateway.csproj" />
+    <Project Path="src/Shopping.Aggregator/Shopping.Aggregator.csproj" />
   </Folder>
   <Folder Name="/src/BuildingBlocks/">
     <Project Path="src/BuildingBlocks/Core.Shared/Core.Shared.csproj" />

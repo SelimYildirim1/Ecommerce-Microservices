@@ -1,7 +1,7 @@
 using MassTransit;
 using Core.Shared.Events;
 using Order.API.Data;
-using Order.API.Entities;
+using Order.API.Domain.AggregatesModel.OrderAggregate;
 using OrderEntity = Order.API.Entities.Order;
 
 namespace Order.API.Consumers;
@@ -28,47 +28,53 @@ public class BasketCheckoutConsumer : IConsumer<BasketCheckoutEvent>
         _logger.LogInformation("Yeni sipariş mesajı geldi. Kullanıcı={UserName}, CardName={CardName}",
             msg.UserName, msg.CardName);
 
-        var order = new OrderEntity
-        {
-            UserName = msg.UserName,
-            TotalPrice = msg.TotalPrice,
-            FirstName = msg.FirstName,
-            LastName = msg.LastName,
-            EmailAddress = msg.EmailAddress,
-            AddressLine = msg.AddressLine,
-            CreatedDate = DateTime.UtcNow
-        };
+        var address = new Address(
+            street: msg.AddressLine,
+            city: "",
+            state: "",
+            country: "",
+            zipCode: ""
+        );
+
+        var order = new OrderEntity(
+            buyerId: msg.UserName,
+            address: address,
+            description: ""
+        );
 
         if (msg.BasketItems != null && msg.BasketItems.Count > 0)
         {
             foreach (var item in msg.BasketItems)
             {
-                if (string.IsNullOrEmpty(item.ProductId) || !Guid.TryParse(item.ProductId, out var productId))
+                if (string.IsNullOrEmpty(item.ProductId) || !int.TryParse(item.ProductId, out var productId))
                 {
                     _logger.LogWarning("Geçersiz ProductId atlanıyor: {ProductId}", item.ProductId ?? "(null)");
                     continue;
                 }
-                order.OrderItems.Add(new OrderItem
-                {
-                    ProductId = productId,
-                    ProductName = item.ProductName ?? "-",
-                    Price = item.Price,
-                    Quantity = item.Quantity
-                });
+
+                order.AddOrderItem(
+                    productId: productId,
+                    productName: item.ProductName ?? "-",
+                    unitPrice: item.Price,
+                    pictureUrl: item.PictureUrl ?? "",
+                    units: item.Quantity,
+                    selectedAttributes: ""
+                );
             }
         }
 
         _dbContext.Orders.Add(order);
         await _dbContext.SaveChangesAsync();
 
-        _logger.LogInformation("Sipariş kaydedildi. OrderId={OrderId}, ItemCount={Count}", order.Id, order.OrderItems.Count);
+        _logger.LogInformation("Sipariş kaydedildi. OrderId={OrderId}, ItemCount={Count}",
+            order.Id, order.OrderItems.Count);
 
         var orderCreatedEvent = new OrderCreatedEvent
         {
             OrderId = order.Id,
-            BuyerId = order.UserName,
-            Email = order.EmailAddress,
-            TotalPrice = order.TotalPrice,
+            BuyerId = order.BuyerId,
+            Email = msg.EmailAddress,
+            TotalPrice = order.TotalAmount,
             CardName = msg.CardName,
             CardNumber = msg.CardNumber,
             Expiration = msg.Expiration,
@@ -77,13 +83,13 @@ public class BasketCheckoutConsumer : IConsumer<BasketCheckoutEvent>
             {
                 ProductId = i.ProductId.ToString(),
                 ProductName = i.ProductName,
-                PictureUrl = null,
-                Price = i.Price,
-                Quantity = i.Quantity
+                PictureUrl = i.PictureUrl,
+                Price = i.UnitPrice,
+                Quantity = i.Units
             }).ToList()
         };
 
         await _publishEndpoint.Publish(orderCreatedEvent);
-        _logger.LogInformation("OrderCreatedEvent yayımlandı. OrderId={OrderId}. Payment ve Catalog dinliyor.", order.Id);
+        _logger.LogInformation("OrderCreatedEvent yayımlandı. OrderId={OrderId}.", order.Id);
     }
 }

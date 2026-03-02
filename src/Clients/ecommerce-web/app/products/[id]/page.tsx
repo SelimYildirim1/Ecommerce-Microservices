@@ -3,14 +3,26 @@ import AddToCartButton from "@/components/AddToCartButton";
 import Link from "next/link";
 import { INTERNAL_API_URL } from "@/lib/api";
 
+interface Variant {
+  id: string;
+  sku: string;
+  price: number;
+  stockQuantity: number;
+  specifics: Record<string, unknown> | null;
+  isActive: boolean;
+}
+
 interface Product {
   id: string;
   name: string;
   description: string;
+  categoryName: string;
+  brandName: string;
+  primaryImageUrl: string | null;
+  isActive: boolean;
   price: number;
-  pictureUrl: string;
   stock: number;
-  category: string;
+  variants: Variant[];
 }
 
 async function getProduct(id: string): Promise<Product | null> {
@@ -19,10 +31,30 @@ async function getProduct(id: string): Promise<Product | null> {
       cache: 'no-store',
     });
     if (!res.ok) return null;
-    return await res.json();
+    const data = await res.json();
+    return data ?? null;
   } catch (error) {
     return null;
   }
+}
+
+function getPrice(product: Product): number {
+  const directPrice = Number(product.price);
+  if (!isNaN(directPrice) && directPrice > 0) return directPrice;
+  if (product.variants?.length > 0) {
+    const variantPrice = Number(product.variants[0].price);
+    if (!isNaN(variantPrice)) return variantPrice;
+  }
+  return 0;
+}
+
+function getTotalStock(product: Product): number {
+  const directStock = Number(product.stock);
+  if (!isNaN(directStock) && directStock > 0) return directStock;
+  if (product.variants?.length > 0) {
+    return product.variants.reduce((sum, v) => sum + (Number(v.stockQuantity) || 0), 0);
+  }
+  return 0;
 }
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -76,9 +108,9 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           {/* Left: Product Image */}
           <div className="space-y-4">
             <div className="aspect-[3/4] bg-muted rounded-xl overflow-hidden border border-border">
-              {product.pictureUrl ? (
+              {(product.primaryImageUrl || (product as unknown as Record<string, unknown>)['pictureUrl']) ? (
                 <img
-                  src={product.pictureUrl}
+                  src={(product.primaryImageUrl || (product as unknown as Record<string, unknown>)['pictureUrl']) as string}
                   alt={product.name}
                   className="w-full h-full object-cover"
                 />
@@ -108,7 +140,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             {/* Price */}
             <div className="mt-6 pb-6 border-b border-border">
               <span className="text-3xl lg:text-4xl font-bold text-foreground">
-                {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(product.price)}
+                {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(getPrice(product))}
               </span>
             </div>
 
@@ -122,19 +154,22 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
             {/* Stock Info */}
             <div className="mt-6 flex items-center gap-2">
-              {product.stock > 0 ? (
-                <>
-                  <div className="w-2 h-2 rounded-full bg-success" />
-                  <span className="text-sm text-muted-foreground">
-                    Stokta {product.stock > 10 ? 'mevcut' : `son ${product.stock} adet`}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <div className="w-2 h-2 rounded-full bg-danger" />
-                  <span className="text-sm text-danger">Stokta yok</span>
-                </>
-              )}
+              {(() => {
+                const totalStock = getTotalStock(product);
+                return totalStock > 0 ? (
+                  <>
+                    <div className="w-2 h-2 rounded-full bg-success" />
+                    <span className="text-sm text-muted-foreground">
+                      Stokta {totalStock > 10 ? 'mevcut' : `son ${totalStock} adet`}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-2 h-2 rounded-full bg-danger" />
+                    <span className="text-sm text-danger">Stokta yok</span>
+                  </>
+                );
+              })()}
             </div>
 
             {/* Add to Cart */}
@@ -143,7 +178,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                 product={{
                   id: product.id,
                   name: product.name,
-                  price: product.price
+                  price: getPrice(product)
                 }}
               />
             </div>

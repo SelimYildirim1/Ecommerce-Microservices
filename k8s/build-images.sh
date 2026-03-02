@@ -24,7 +24,7 @@ echo "============================================="
 echo ""
 
 # Sayac
-TOTAL=7
+TOTAL=8
 CURRENT=0
 
 build_image() {
@@ -69,6 +69,10 @@ build_image "payment-api" \
 
 build_image "api-gateway" \
   "src/API.Gateway/Dockerfile" \
+  "$PROJECT_ROOT"
+
+build_image "shopping-aggregator" \
+  "src/Shopping.Aggregator/Dockerfile" \
   "$PROJECT_ROOT"
 
 # -------------------- FRONTEND --------------------

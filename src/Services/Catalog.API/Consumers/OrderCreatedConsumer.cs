@@ -23,23 +23,20 @@ public class OrderCreatedConsumer : IConsumer<OrderCreatedEvent>
 
         if (msg.OrderItems == null || msg.OrderItems.Count == 0)
         {
-            // Siparişte ürün yoksa, teknik olarak stok sorunu yoktur.
-            // Ama 0 tutarlı bir ödeme vs. olabilir, akışı bozmamak için onay veriyoruz.
             await PublishStockReserved(context);
             return;
         }
 
-        // Kullanılacak ürünleri hafızaya alıp toplu kontrol edelim (Transaction mantığı)
-        // Aynı üründen birden fazla satır olabilir, group by ile toplam adedi bulalım.
+        // ProductId artık varyant ID'si olarak kullanılıyor
         var orderItemGroups = msg.OrderItems
             .GroupBy(x => x.ProductId)
             .ToList();
 
-        var productsToUpdate = new List<Catalog.API.Entities.Product>();
+        var variantsToUpdate = new List<Catalog.API.Entities.ProductVariant>();
 
         foreach (var group in orderItemGroups)
         {
-            if (!Guid.TryParse(group.Key, out var productId))
+            if (!Guid.TryParse(group.Key, out var variantId))
             {
                 await PublishStockNotReserved(context, $"Geçersiz ProductId: {group.Key}");
                 return;
@@ -47,44 +44,38 @@ public class OrderCreatedConsumer : IConsumer<OrderCreatedEvent>
 
             var totalRequestedQty = group.Sum(x => x.Quantity);
 
-            // Veritabanından ürünü bul
-            var product = await _context.Products.FindAsync(productId);
+            // Varyant üzerinden stok kontrolü
+            var variant = await _context.ProductVariants
+                .Include(v => v.Product)
+                .FirstOrDefaultAsync(v => v.Id == variantId);
 
-            if (product == null)
+            if (variant == null)
             {
-                await PublishStockNotReserved(context, $"Ürün bulunamadı. Id={productId}");
+                await PublishStockNotReserved(context, $"Varyant bulunamadı. Id={variantId}");
                 return;
             }
 
-            if (product.StockQuantity < totalRequestedQty)
+            if (variant.StockQuantity < totalRequestedQty)
             {
-                await PublishStockNotReserved(context, 
-                    $"Yetersiz stok. Ürün: {product.Name}, Stok: {product.StockQuantity}, İstenen: {totalRequestedQty}");
+                await PublishStockNotReserved(context,
+                    $"Yetersiz stok. Ürün: {variant.Product.Name} (SKU: {variant.Sku}), Stok: {variant.StockQuantity}, İstenen: {totalRequestedQty}");
                 return;
             }
 
-            // Bu ürün onaylandı, listeye ekle (daha sonra güncellemek için)
-            // Not: EF Core tracking sayesinde bellekteki bu nesneyi güncelleyince SaveChanges ile yansır.
-            // Ancak henüz güncellemiyoruz, tüm ürünler onaylanınca düşeceğiz.
-            productsToUpdate.Add(product);
+            variantsToUpdate.Add(variant);
         }
 
-        // --- BURAYA GELDİYSEK TÜM ÜRÜNLER İÇİN STOK YETERLİDİR ---
-
-        // 1. Stokları düş
+        // Tüm varyantlar için stok yeterli - düş
         foreach (var group in orderItemGroups)
         {
-            var product = productsToUpdate.First(p => p.Id == Guid.Parse(group.Key));
+            var variant = variantsToUpdate.First(v => v.Id == Guid.Parse(group.Key));
             var qty = group.Sum(x => x.Quantity);
-            product.StockQuantity -= qty;
+            variant.StockQuantity -= qty;
         }
 
-        // 2. DB'ye kaydet
         await _context.SaveChangesAsync();
-        
         _logger.LogInformation("Stoklar güncellendi. OrderId={OrderId}", msg.OrderId);
 
-        // 3. Başarılı eventini fırlat (Ödeme servisi bunu bekliyor)
         await PublishStockReserved(context);
     }
 
@@ -103,8 +94,7 @@ public class OrderCreatedConsumer : IConsumer<OrderCreatedEvent>
             CVV = msg.CVV,
             OrderItems = msg.OrderItems
         };
-        
-        // Eventi yayımla
+
         await context.Publish(reservedEvent);
         _logger.LogInformation("StockReservedEvent yayımlandı. OrderId={OrderId}", msg.OrderId);
     }

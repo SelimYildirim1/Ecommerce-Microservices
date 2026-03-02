@@ -50,6 +50,8 @@ spec:
               value: "Server=postgres-db;Port=5432;Database=IdentityDb;User Id=postgres;Password=postgres;"
             - name: RabbitMQ__HostName
               value: "rabbitmq"
+            - name: OpenTelemetry__Endpoint
+              value: "http://jaeger:4317"
           readinessProbe:
             tcpSocket:
               port: 8080
@@ -120,6 +122,8 @@ spec:
               value: "Server=postgres-db;Port=5432;Database=CatalogDb;User Id=postgres;Password=postgres;"
             - name: RabbitMQ__HostName
               value: "rabbitmq"
+            - name: OpenTelemetry__Endpoint
+              value: "http://jaeger:4317"
           readinessProbe:
             tcpSocket:
               port: 8080
@@ -192,6 +196,8 @@ spec:
               value: "http://catalog-api:8080"
             - name: RabbitMQ__HostName
               value: "rabbitmq"
+            - name: OpenTelemetry__Endpoint
+              value: "http://jaeger:4317"
           readinessProbe:
             tcpSocket:
               port: 8080
@@ -262,6 +268,8 @@ spec:
               value: "Server=postgres-db;Port=5432;Database=OrderDb;User Id=postgres;Password=postgres;"
             - name: RabbitMQ__HostName
               value: "rabbitmq"
+            - name: OpenTelemetry__Endpoint
+              value: "http://jaeger:4317"
           readinessProbe:
             tcpSocket:
               port: 8080
@@ -330,6 +338,8 @@ spec:
               value: "Development"
             - name: RabbitMQ__HostName
               value: "rabbitmq"
+            - name: OpenTelemetry__Endpoint
+              value: "http://jaeger:4317"
           readinessProbe:
             tcpSocket:
               port: 8080
@@ -400,6 +410,19 @@ spec:
               value: "Development"
             - name: Identity__Url
               value: "http://identity-api:8080"
+            - name: OpenTelemetry__Endpoint
+              value: "http://jaeger:4317"
+            # YARP Cluster Adresleri (appsettings.Development.json override'ını geçersiz kıl)
+            - name: ReverseProxy__Clusters__catalog-cluster__Destinations__catalog__Address
+              value: "http://catalog-api:8080"
+            - name: ReverseProxy__Clusters__basket-cluster__Destinations__basket__Address
+              value: "http://basket-api:8080"
+            - name: ReverseProxy__Clusters__order-cluster__Destinations__order__Address
+              value: "http://order-api:8080"
+            - name: ReverseProxy__Clusters__identity-cluster__Destinations__identity__Address
+              value: "http://identity-api:8080"
+            - name: ReverseProxy__Clusters__aggregator-cluster__Destinations__aggregator__Address
+              value: "http://shopping-aggregator:8080"
           readinessProbe:
             tcpSocket:
               port: 8080
@@ -429,6 +452,80 @@ metadata:
 spec:
   selector:
     app: api-gateway
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP
+
+---
+# =============================================================
+#  SHOPPING AGGREGATOR (BFF - Admin Panel Backend)
+# =============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shopping-aggregator
+  namespace: ecommerce
+  labels:
+    app: shopping-aggregator
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: shopping-aggregator
+  template:
+    metadata:
+      labels:
+        app: shopping-aggregator
+        tier: backend
+    spec:
+      containers:
+        - name: shopping-aggregator
+          image: shopping-aggregator:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Development"
+            - name: Services__OrderApi
+              value: "http://order-api:8080"
+            - name: Services__CatalogApi
+              value: "http://catalog-api:8080"
+            - name: Services__IdentityApi
+              value: "http://identity-api:8080"
+            - name: OpenTelemetry__Endpoint
+              value: "http://jaeger:4317"
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shopping-aggregator
+  namespace: ecommerce
+  labels:
+    app: shopping-aggregator
+spec:
+  selector:
+    app: shopping-aggregator
   ports:
     - port: 8080
       targetPort: 8080

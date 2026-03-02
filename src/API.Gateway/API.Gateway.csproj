@@ -7,13 +7,21 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- YARP - Yet Another Reverse Proxy -->
+    <PackageReference Include="Yarp.ReverseProxy" Version="2.2.0" />
+    <!-- JWT Authentication -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
-    <PackageReference Include="Ocelot" Version="24.1.0" />
+    <!-- Rate Limiting (ASP.NET Core built-in, ekstra paket gerekmez) -->
+    <!-- Prometheus Metrics -->
     <PackageReference Include="prometheus-net.AspNetCore" Version="8.2.1" />
+    <!-- Logging -->
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageReference Include="Serilog.Sinks.Seq" Version="9.0.0" />
-    <PackageReference Include="AspNetCore.HealthChecks.UI" Version="9.0.0" />
-    <PackageReference Include="AspNetCore.HealthChecks.UI.InMemory.Storage" Version="9.0.0" />
+    <!-- OpenTelemetry - Distributed Tracing -->
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.10.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.10.1" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.10.0" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.10.0" />
   </ItemGroup>
 
 </Project>

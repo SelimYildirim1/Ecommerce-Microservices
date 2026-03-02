@@ -36,3 +36,8 @@ scrape_configs:
     static_configs:
       - targets: ['identity-api:8080']
     metrics_path: /metrics
+
+  - job_name: 'shopping-aggregator'
+    static_configs:
+      - targets: ['shopping-aggregator:8080']
+    metrics_path: /metrics

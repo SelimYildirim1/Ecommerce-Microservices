@@ -1,5 +1,5 @@
 using Catalog.API.Data;
-using Catalog.API.Products.GetProducts; // ProductDto'yu kullanmak için
+using Catalog.API.Products.GetProducts;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,24 +16,29 @@ public class GetProductByIdHandler : IRequestHandler<GetProductByIdQuery, Produc
 
     public async Task<ProductDto?> Handle(GetProductByIdQuery query, CancellationToken cancellationToken)
     {
-        // ID'ye göre ürünü bul (AsNoTracking ile performans için)
         var product = await _context.Products
             .AsNoTracking()
+            .Include(p => p.Category)
+            .Include(p => p.Brand)
+            .Include(p => p.Variants.Where(v => v.IsActive))
+            .Include(p => p.Images)
             .FirstOrDefaultAsync(p => p.Id == query.Id, cancellationToken);
 
-        // Ürün bulunamazsa null dön
-        if (product == null)
-        {
-            return null;
-        }
+        if (product == null) return null;
 
-        // Entity -> DTO Dönüşümü
         return new ProductDto(
             product.Id,
             product.Name,
             product.Description,
-            product.Price,
-            product.PictureUrl,
-            product.StockQuantity);
+            product.Category.Name,
+            product.Brand.Name,
+            product.Images.FirstOrDefault(i => i.IsPrimary)?.Url,
+            product.IsActive,
+            product.Variants.Where(v => v.IsActive).Select(v => v.Price).FirstOrDefault(),
+            product.Variants.Where(v => v.IsActive).Sum(v => v.StockQuantity),
+            product.Variants.Select(v => new VariantDto(
+                v.Id, v.Sku, v.Price, v.StockQuantity, v.Specifics, v.IsActive
+            )).ToList()
+        );
     }
 }
