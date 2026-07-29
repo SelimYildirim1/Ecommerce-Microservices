@@ -1,17 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { API_URL } from "@/lib/api";
 
 export default function LoginPage() {
   const { login } = useAuth();
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [email, setEmail] = useState("selimyildirim@mail.com");
-  const [password, setPassword] = useState("123456");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,92 +26,107 @@ export default function LoginPage() {
         const data = await res.json();
         login(data.token);
       } else {
-        alert("Giris basarisiz! Bilgileri kontrol edin.");
+        const text = await res.text();
+        alert(text || "Giriş başarısız! Bilgileri kontrol edin.");
       }
     } catch (error) {
       console.error(error);
-      alert("Baglanti hatasi!");
+      alert("Bağlantı hatası!");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-white px-4">
+    <main className="flex min-h-screen items-center justify-center bg-cream px-4 py-12">
       <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-10">
-          <Link href="/" className="inline-flex items-center gap-2">
-            <div className="w-10 h-10 bg-foreground rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-lg">YS</span>
-            </div>
+        <div className="mb-8 text-center">
+          <Link href="/" className="inline-flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-foreground text-base font-bold text-white">
+              YS
+            </span>
+            <span className="text-lg font-semibold text-gray-900">Yıldırım Store</span>
           </Link>
         </div>
 
-        <div className="border border-border rounded-xl p-8">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-foreground">Tekrar Hosgeldiniz</h1>
-            <p className="text-muted-foreground text-sm mt-2">Hesabiniza giris yapin</p>
+        <div className="rounded-2xl border border-gray-100 bg-white p-8 shadow-sm">
+          <div className="mb-8 text-center">
+            <h1 className="font-display text-3xl font-bold text-gray-900">
+              Tekrar hoş geldiniz
+            </h1>
+            <p className="mt-2 text-sm text-gray-500">Hesabınıza giriş yapın</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-                E-Posta Adresi
+              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">
+                E-posta adresi
               </label>
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full h-11 px-4 rounded-lg border border-border bg-white text-sm placeholder:text-muted-foreground focus:outline-none focus:border-foreground focus:ring-1 focus:ring-foreground transition"
+                className={INPUT}
                 placeholder="ornek@mail.com"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-                Sifre
+              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-500">
+                Şifre
               </label>
               <input
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full h-11 px-4 rounded-lg border border-border bg-white text-sm placeholder:text-muted-foreground focus:outline-none focus:border-foreground focus:ring-1 focus:ring-foreground transition"
+                className={INPUT}
                 placeholder="••••••"
               />
+              <div className="mt-2 text-right">
+                <Link href="/forgot-password" className="text-xs text-gray-500 hover:underline">
+                  Şifremi unuttum
+                </Link>
+              </div>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-11 bg-foreground text-white font-medium rounded-lg hover:bg-foreground/85 transition disabled:opacity-50 flex items-center justify-center gap-2 mt-6"
+              className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-foreground font-medium text-white transition-colors hover:bg-gray-800 disabled:opacity-50"
             >
               {loading ? (
                 <>
-                  <svg className="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <svg className="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  Giris Yapiliyor...
+                  Giriş yapılıyor...
                 </>
               ) : (
-                "Giris Yap"
+                "Giriş Yap"
               )}
             </button>
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-sm text-muted-foreground">
-              Hesabiniz yok mu?{" "}
-              <Link href="/register" className="text-foreground font-semibold hover:underline">
-                Kayit Ol
-              </Link>
-            </p>
-          </div>
+          <p className="mt-6 text-center text-sm text-gray-500">
+            Hesabınız yok mu?{" "}
+            <Link href="/register" className="font-semibold text-gray-900 hover:underline">
+              Kayıt Ol
+            </Link>
+          </p>
         </div>
+
+        <p className="mt-6 text-center text-sm text-gray-500">
+          <Link href="/" className="hover:text-gray-900">
+            ← Mağazaya dön
+          </Link>
+        </p>
       </div>
     </main>
   );
 }
+
+const INPUT =
+  "h-11 w-full rounded-lg border border-border bg-white px-4 text-sm transition placeholder:text-gray-400 focus:border-foreground focus:outline-none focus:ring-1 focus:ring-foreground";

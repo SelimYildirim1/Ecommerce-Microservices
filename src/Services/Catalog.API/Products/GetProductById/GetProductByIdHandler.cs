@@ -20,25 +20,22 @@ public class GetProductByIdHandler : IRequestHandler<GetProductByIdQuery, Produc
             .AsNoTracking()
             .Include(p => p.Category)
             .Include(p => p.Brand)
-            .Include(p => p.Variants.Where(v => v.IsActive))
+            .Include(p => p.Variants)
             .Include(p => p.Images)
             .FirstOrDefaultAsync(p => p.Id == query.Id, cancellationToken);
 
         if (product == null) return null;
 
-        return new ProductDto(
-            product.Id,
-            product.Name,
-            product.Description,
-            product.Category.Name,
-            product.Brand.Name,
-            product.Images.FirstOrDefault(i => i.IsPrimary)?.Url,
-            product.IsActive,
-            product.Variants.Where(v => v.IsActive).Select(v => v.Price).FirstOrDefault(),
-            product.Variants.Where(v => v.IsActive).Sum(v => v.StockQuantity),
-            product.Variants.Select(v => new VariantDto(
-                v.Id, v.Sku, v.Price, v.StockQuantity, v.Specifics, v.IsActive
-            )).ToList()
-        );
+        var ratings = await _context.ProductReviews
+            .AsNoTracking()
+            .Where(r => r.ProductId == product.Id && r.IsApproved)
+            .Select(r => (double)r.Rating)
+            .ToListAsync(cancellationToken);
+
+        return product.ToDto(query.IncludeInactive) with
+        {
+            AverageRating = ratings.Count > 0 ? Math.Round(ratings.Average(), 2) : null,
+            ReviewCount = ratings.Count
+        };
     }
 }

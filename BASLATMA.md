@@ -17,7 +17,15 @@ En hızlı ve basit yöntem. Tüm servisler Docker container olarak çalışır.
 ./scripts/start-docker.sh
 ```
 
-veya detaylı log için:
+Varsayılan **lite** moddur: Seq / Jaeger / Prometheus / Grafana açılmaz (Mac RAM dostu).
+
+Monitoring dahil tam stack:
+
+```bash
+./scripts/start-docker.sh --full
+```
+
+Detaylı log için:
 
 ```bash
 ./scripts/start-docker.sh --no-detach
@@ -25,14 +33,16 @@ veya detaylı log için:
 
 ### Erişim Adresleri
 
-| Servis       | Adres                      |
-|--------------|----------------------------|
-| Frontend     | http://localhost:3000      |
-| API Gateway  | http://localhost:8000      |
-| RabbitMQ     | http://localhost:15672     |
-| Seq (Loglar) | http://localhost:5340      |
-| Prometheus   | http://localhost:9090      |
-| Grafana      | http://localhost:3001      |
+| Servis       | Adres                      | Not |
+|--------------|----------------------------|-----|
+| Frontend     | http://localhost:3000      | lite |
+| API Gateway  | http://localhost:8001      | lite (8000 Cursor ile cakismasin diye) |
+| RabbitMQ     | http://localhost:15672     | lite |
+| Admin Panel  | http://localhost:3002      | `src/admin-panel` icinde `npm run dev -- -p 3002` |
+| MailHog      | http://localhost:8025      | lite (giden e-postalar burada birikir, disariya cikmaz) |
+| Seq (Loglar) | http://localhost:5340      | sadece `--full` |
+| Prometheus   | http://localhost:9090      | sadece `--full` |
+| Grafana      | http://localhost:3001      | sadece `--full` |
 
 ### Durdurma
 

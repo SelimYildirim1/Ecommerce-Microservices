@@ -1,26 +1,31 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
 namespace Order.API.Hubs;
 
 /// <summary>
 /// Sipariş durumundaki değişiklikleri gerçek zamanlı olarak iletmek için kullanılan SignalR Hub'ı.
-/// 
-/// İstemciler bağlanırken query string ile userId gönderir:
-///   /hubs/orderStatus?userId={userId}
-/// 
-/// Hub, bağlantıyı otomatik olarak "user-{userId}" grubuna ekler.
+/// JWT'deki sub claim'i ile "user-{userId}" grubuna eklenir (query userId yok sayılır).
 /// </summary>
+[Authorize]
 public class OrderStatusHub : Hub
 {
     public override async Task OnConnectedAsync()
     {
-        var httpContext = Context.GetHttpContext();
-        var userId = httpContext?.Request.Query["userId"].ToString();
+        var userId = Context.User?.FindFirstValue(JwtRegisteredClaimNames.Sub)
+            ?? Context.User?.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? Context.User?.FindFirstValue("sub");
 
         if (!string.IsNullOrWhiteSpace(userId))
         {
-            // Her kullanıcı için ayrı bir grup oluşturuyoruz
             await Groups.AddToGroupAsync(Context.ConnectionId, GetUserGroupName(userId));
+        }
+        else
+        {
+            Context.Abort();
+            return;
         }
 
         await base.OnConnectedAsync();
@@ -28,8 +33,9 @@ public class OrderStatusHub : Hub
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        var httpContext = Context.GetHttpContext();
-        var userId = httpContext?.Request.Query["userId"].ToString();
+        var userId = Context.User?.FindFirstValue(JwtRegisteredClaimNames.Sub)
+            ?? Context.User?.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? Context.User?.FindFirstValue("sub");
 
         if (!string.IsNullOrWhiteSpace(userId))
         {
@@ -41,4 +47,3 @@ public class OrderStatusHub : Hub
 
     public static string GetUserGroupName(string userId) => $"user-{userId}";
 }
-

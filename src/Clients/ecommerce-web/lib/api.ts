@@ -20,7 +20,7 @@
  * NEXT_PUBLIC_ prefix'i ile build sırasında baked-in olur.
  */
 export const API_URL =
-  process.env.NEXT_PUBLIC_API_GATEWAY_URL || "http://localhost:8000";
+  process.env.NEXT_PUBLIC_API_GATEWAY_URL || "http://localhost:8001";
 
 /**
  * Server-side (SSR) API base URL (Next.js container -> K8s internal DNS)
@@ -48,3 +48,17 @@ export function getApiUrl(): string {
   // Client-side - Ingress veya port-forward URL kullan
   return API_URL;
 }
+
+/** Client-side Authorization header (js-cookie ile). */
+export function authHeaders(extra?: HeadersInit): HeadersInit {
+  let token: string | undefined;
+  if (typeof document !== "undefined") {
+    const match = document.cookie.match(/(?:^|;\s*)token=([^;]*)/);
+    token = match ? decodeURIComponent(match[1]) : undefined;
+  }
+  return {
+    ...(extra ?? {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+

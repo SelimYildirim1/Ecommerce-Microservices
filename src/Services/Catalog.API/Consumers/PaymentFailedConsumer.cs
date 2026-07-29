@@ -1,6 +1,8 @@
 using MassTransit;
 using Core.Shared.Events;
 using Catalog.API.Data;
+using Catalog.API.Entities;
+using Catalog.API.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace Catalog.API.Consumers;
@@ -12,11 +14,16 @@ namespace Catalog.API.Consumers;
 public class PaymentFailedConsumer : IConsumer<PaymentFailedEvent>
 {
     private readonly CatalogDbContext _context;
+    private readonly StockLedger _ledger;
     private readonly ILogger<PaymentFailedConsumer> _logger;
 
-    public PaymentFailedConsumer(CatalogDbContext context, ILogger<PaymentFailedConsumer> logger)
+    public PaymentFailedConsumer(
+        CatalogDbContext context,
+        StockLedger ledger,
+        ILogger<PaymentFailedConsumer> logger)
     {
         _context = context;
+        _ledger = ledger;
         _logger = logger;
     }
 
@@ -34,27 +41,43 @@ public class PaymentFailedConsumer : IConsumer<PaymentFailedEvent>
 
         _logger.LogInformation("STOK GERİ EKLEME BAŞLADI (Compensating Transaction)");
 
-        foreach (var item in msg.OrderItems)
-        {
-            if (string.IsNullOrEmpty(item.ProductId)) continue;
-            if (!Guid.TryParse(item.ProductId, out var variantId)) continue;
+        // Siparis sirasinda hangi varyanttan ne kadar dusuldugu stok hareketinde yazili;
+        // geri ekleme bu kayda gore yapilir, boylece dogru varyant telafi edilir.
+        var saleMovements = await _context.StockMovements
+            .Where(m => m.Reference == msg.OrderId.ToString() && m.Type == StockMovementType.Sale)
+            .ToListAsync(context.CancellationToken);
 
-            // Stok artık varyant üzerinde
+        var restorations = saleMovements.Count > 0
+            ? saleMovements.Select(m => (VariantId: m.ProductVariantId, Quantity: Math.Abs(m.Quantity)))
+            : msg.OrderItems
+                .Where(i => Guid.TryParse(i.ProductId, out _))
+                .Select(i => (VariantId: Guid.Parse(i.ProductId), Quantity: i.Quantity));
+
+        foreach (var (variantId, quantity) in restorations)
+        {
             var variant = await _context.ProductVariants
                 .Include(v => v.Product)
                 .FirstOrDefaultAsync(v => v.Id == variantId, context.CancellationToken);
 
             if (variant == null)
             {
-                _logger.LogWarning("Varyant bulunamadı, stok geri eklenemedi. VariantId={VariantId}", item.ProductId);
+                _logger.LogWarning("Varyant bulunamadı, stok geri eklenemedi. VariantId={VariantId}", variantId);
                 continue;
             }
 
             var previousStock = variant.StockQuantity;
-            variant.StockQuantity += item.Quantity;
+            variant.StockQuantity += quantity;
+
+            _ledger.Record(
+                variant,
+                StockMovementType.Return,
+                quantity,
+                previousStock,
+                reference: msg.OrderId.ToString(),
+                note: $"Ödeme başarısız: {msg.Reason}");
 
             _logger.LogInformation("STOK GERİ EKLENDİ! {ProductName} (SKU: {Sku}), {Previous} -> {New} (+{Qty})",
-                variant.Product.Name, variant.Sku, previousStock, variant.StockQuantity, item.Quantity);
+                variant.Product.Name, variant.Sku, previousStock, variant.StockQuantity, quantity);
         }
 
         await _context.SaveChangesAsync(context.CancellationToken);

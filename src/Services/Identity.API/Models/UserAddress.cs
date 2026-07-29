@@ -22,4 +22,9 @@ public class UserAddress
     public string ZipCode { get; set; } = default!;
     public string Country { get; set; } = default!;
     public string PhoneNumber { get; set; } = default!; // Kargo için şart
+
+    /// <summary>Checkout'ta on secili gelen adres.</summary>
+    public bool IsDefault { get; set; }
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

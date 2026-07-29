@@ -14,7 +14,15 @@ public record ProductDto(
     bool IsActive,
     decimal Price,
     int Stock,
-    List<VariantDto> Variants);
+    List<VariantDto> Variants,
+    Guid? CategoryId = null,
+    Guid? BrandId = null,
+    string? Slug = null,
+    string? MetaTitle = null,
+    string? MetaDescription = null,
+    List<ProductImageDto>? Images = null,
+    double? AverageRating = null,
+    int ReviewCount = 0);
 
 public record VariantDto(
     Guid Id,
@@ -24,5 +32,11 @@ public record VariantDto(
     JsonDocument? Specifics,
     bool IsActive);
 
-// Query
-public record GetProductsQuery() : IRequest<IEnumerable<ProductDto>>;
+public record ProductImageDto(
+    Guid Id,
+    string Url,
+    bool IsPrimary,
+    int SortOrder);
+
+// Query - admin tarafi pasif urunleri de gormek icin includeInactive kullanir
+public record GetProductsQuery(bool IncludeInactive = false) : IRequest<IEnumerable<ProductDto>>;

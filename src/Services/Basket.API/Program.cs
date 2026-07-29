@@ -1,12 +1,16 @@
 using Basket.API.Repositories;
 using Basket.API.Services;
 using MassTransit;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.Tokens;
 using Swashbuckle.AspNetCore;
 using Serilog;
 using Prometheus;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using System.Security.Claims;
+using System.Text;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -39,6 +43,26 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+var jwtSecret = builder.Configuration["JwtSettings:Secret"]
+    ?? builder.Configuration["Jwt:SecretKey"]
+    ?? "bu_benim_cok_gizli_sifrem_ecommerce_project_secret_key_12345";
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero,
+            RoleClaimType = ClaimTypes.Role
+        };
+    });
+builder.Services.AddAuthorization();
+
 // A) Redis Cache Entegrasyonu
 builder.Services.AddStackExchangeRedisCache(options =>
 {
@@ -59,6 +83,26 @@ var catalogBaseUrl = builder.Configuration["Services:CatalogApi"]
 builder.Services.AddHttpClient<CatalogService>(client =>
 {
     client.BaseAddress = new Uri(catalogBaseUrl);
+});
+
+// --- PROMOSYON VE KARGO SERVISLERI ---
+// Bu servisler kapaliysa checkout akisi bozulmaz; indirim/kargo 0 kabul edilir.
+var promotionBaseUrl = builder.Configuration["Services:PromotionApi"]
+    ?? "http://localhost:5070";
+
+builder.Services.AddHttpClient<PromotionService>(client =>
+{
+    client.BaseAddress = new Uri(promotionBaseUrl);
+    client.Timeout = TimeSpan.FromSeconds(5);
+});
+
+var shippingBaseUrl = builder.Configuration["Services:ShippingApi"]
+    ?? "http://localhost:5071";
+
+builder.Services.AddHttpClient<ShippingService>(client =>
+{
+    client.BaseAddress = new Uri(shippingBaseUrl);
+    client.Timeout = TimeSpan.FromSeconds(5);
 });
 
 // C) MassTransit (RabbitMQ) Entegrasyonu
@@ -96,8 +140,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpMetrics(); // Prometheus HTTP metrikleri
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "Basket.API" }));
 app.MapMetrics(); // /metrics endpoint'i
 
 app.Run();

@@ -15,8 +15,9 @@ public class BasketCheckout
     public string State { get; set; } = default!;
     public string ZipCode { get; set; } = default!;
 
-    public string CardName { get; set; } = default!;
-    public string CardNumber { get; set; } = default!;
-    public string Expiration { get; set; } = default!;
-    public string CVV { get; set; } = default!;
+    // Geriye dönük uyumluluk — yeni istemciler göndermez
+    public string? CardName { get; set; }
+    public string? CardNumber { get; set; }
+    public string? Expiration { get; set; }
+    public string? CVV { get; set; }
 }

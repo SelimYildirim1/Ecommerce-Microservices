@@ -24,10 +24,32 @@ public class CreateProductHandler : IRequestHandler<CreateProductCommand, Guid>
             Name = command.Name,
             Description = command.Description,
             CategoryId = command.CategoryId,
-            BrandId = command.BrandId
+            BrandId = command.BrandId,
+            MetaTitle = command.MetaTitle,
+            MetaDescription = command.MetaDescription,
+            Slug = SlugGenerator.Generate(
+                string.IsNullOrWhiteSpace(command.Slug) ? command.Name : command.Slug)
         };
 
-        if (!string.IsNullOrWhiteSpace(command.PrimaryImageUrl))
+        var images = (command.Images ?? new List<CreateProductImageRequest>())
+            .Where(i => !string.IsNullOrWhiteSpace(i.Url))
+            .OrderBy(i => i.SortOrder)
+            .ToList();
+
+        if (images.Count > 0)
+        {
+            for (var i = 0; i < images.Count; i++)
+            {
+                product.Images.Add(new ProductImage
+                {
+                    ProductId = product.Id,
+                    Url = images[i].Url,
+                    IsPrimary = images.Any(x => x.IsPrimary) ? images[i].IsPrimary : i == 0,
+                    SortOrder = i
+                });
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(command.PrimaryImageUrl))
         {
             product.Images.Add(new ProductImage
             {

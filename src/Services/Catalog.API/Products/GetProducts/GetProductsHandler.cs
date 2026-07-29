@@ -19,25 +19,51 @@ public class GetProductsHandler : IRequestHandler<GetProductsQuery, IEnumerable<
             .AsNoTracking()
             .Include(p => p.Category)
             .Include(p => p.Brand)
-            .Include(p => p.Variants.Where(v => v.IsActive))
-            .Include(p => p.Images.Where(i => i.IsPrimary))
-            .Where(p => p.IsActive)
+            .Include(p => p.Variants)
+            .Include(p => p.Images)
+            .Where(p => query.IncludeInactive || p.IsActive)
             .OrderBy(p => p.Name)
             .ToListAsync(cancellationToken);
 
-        return products.Select(p => new ProductDto(
+        return products.Select(p => p.ToDto(query.IncludeInactive));
+    }
+}
+
+internal static class ProductMappingExtensions
+{
+    /// <summary>
+    /// Vitrin tarafi yalnizca aktif varyantlari gorur; admin tarafi (includeInactive)
+    /// pasifleri de gormeli ki duzenleyebilsin.
+    /// </summary>
+    public static ProductDto ToDto(this Entities.Product p, bool includeInactive)
+    {
+        var variants = includeInactive
+            ? p.Variants.ToList()
+            : p.Variants.Where(v => v.IsActive).ToList();
+
+        var activeVariants = p.Variants.Where(v => v.IsActive).ToList();
+
+        return new ProductDto(
             p.Id,
             p.Name,
             p.Description,
-            p.Category.Name,
-            p.Brand.Name,
-            p.Images.FirstOrDefault()?.Url,
+            p.Category?.Name ?? string.Empty,
+            p.Brand?.Name ?? string.Empty,
+            p.Images.FirstOrDefault(i => i.IsPrimary)?.Url ?? p.Images.FirstOrDefault()?.Url,
             p.IsActive,
-            p.Variants.Where(v => v.IsActive).Select(v => v.Price).FirstOrDefault(),
-            p.Variants.Where(v => v.IsActive).Sum(v => v.StockQuantity),
-            p.Variants.Select(v => new VariantDto(
-                v.Id, v.Sku, v.Price, v.StockQuantity, v.Specifics, v.IsActive
-            )).ToList()
-        ));
+            activeVariants.Select(v => v.Price).FirstOrDefault(),
+            activeVariants.Sum(v => v.StockQuantity),
+            variants
+                .Select(v => new VariantDto(v.Id, v.Sku, v.Price, v.StockQuantity, v.Specifics, v.IsActive))
+                .ToList(),
+            p.CategoryId,
+            p.BrandId,
+            p.Slug,
+            p.MetaTitle,
+            p.MetaDescription,
+            p.Images
+                .OrderBy(i => i.SortOrder)
+                .Select(i => new ProductImageDto(i.Id, i.Url, i.IsPrimary, i.SortOrder))
+                .ToList());
     }
 }

@@ -18,7 +18,14 @@ public class Product : BaseEntity
     /// <summary>Ürün aktif mi? (Soft delete)</summary>
     public bool IsActive { get; set; } = true;
 
+    // --- SEO ---
+    /// <summary>URL dostu ad. Bos birakilirsa Name'den uretilir.</summary>
+    public string? Slug { get; set; }
+    public string? MetaTitle { get; set; }
+    public string? MetaDescription { get; set; }
+
     // Navigation
     public ICollection<ProductVariant> Variants { get; set; } = new List<ProductVariant>();
     public ICollection<ProductImage> Images { get; set; } = new List<ProductImage>();
+    public ICollection<ProductReview> Reviews { get; set; } = new List<ProductReview>();
 }

@@ -3,24 +3,20 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Prometheus;
 using Serilog;
+using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
+using System.Collections.Concurrent;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// -------------------------------------------------------
-// 1. LOGGING (Serilog)
-// -------------------------------------------------------
 builder.Host.UseSerilog((context, config) =>
 {
     config.ReadFrom.Configuration(context.Configuration);
 });
 
-// -------------------------------------------------------
-// 1.5 DISTRIBUTED TRACING (OpenTelemetry → Jaeger)
-// -------------------------------------------------------
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService("API.Gateway"))
     .WithTracing(tracing =>
@@ -35,18 +31,22 @@ builder.Services.AddOpenTelemetry()
             });
     });
 
-// -------------------------------------------------------
-// 2. YARP - Reverse Proxy
-//    Konfigürasyon yarp.json'dan okunur (appsettings içinde)
-// -------------------------------------------------------
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
-// -------------------------------------------------------
-// 3. JWT Authentication
-// -------------------------------------------------------
-var secretKey = builder.Configuration["Jwt:SecretKey"]
-    ?? "bu_benim_cok_gizli_sifrem_ecommerce_project_secret_key_12345";
+var secretKey = builder.Configuration["Jwt:SecretKey"];
+if (string.IsNullOrWhiteSpace(secretKey))
+{
+    if (builder.Environment.IsProduction())
+        throw new InvalidOperationException(
+            "Jwt:SecretKey (veya Jwt__SecretKey) Production ortamında zorunludur.");
+
+    secretKey = "bu_benim_cok_gizli_sifrem_ecommerce_project_secret_key_12345";
+}
+
+var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? builder.Configuration["JwtSettings:Issuer"];
+var jwtAudience = builder.Configuration["Jwt:Audience"] ?? builder.Configuration["JwtSettings:Audience"];
+var validateIssuerAudience = !string.IsNullOrWhiteSpace(jwtIssuer) && !string.IsNullOrWhiteSpace(jwtAudience);
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -55,19 +55,23 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         {
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
-            ValidateIssuer = false,
-            ValidateAudience = false,
+            ValidateIssuer = validateIssuerAudience,
+            ValidIssuer = jwtIssuer,
+            ValidateAudience = validateIssuerAudience,
+            ValidAudience = jwtAudience,
             ValidateLifetime = true,
-            ClockSkew = TimeSpan.Zero
+            ClockSkew = TimeSpan.Zero,
+            RoleClaimType = ClaimTypes.Role
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy => policy
+        .RequireAuthenticatedUser()
+        .RequireRole("Admin"));
+});
 
-// -------------------------------------------------------
-// 4. RATE LIMITING (ASP.NET Core 7+ built-in)
-//    - "fixed" policy: 100 istek / 10 saniye / IP başına
-// -------------------------------------------------------
 builder.Services.AddRateLimiter(options =>
 {
     options.AddFixedWindowLimiter("fixed", limiterOptions =>
@@ -78,40 +82,84 @@ builder.Services.AddRateLimiter(options =>
         limiterOptions.QueueLimit = 5;
     });
 
-    // Limit aşıldığında 429 Too Many Requests döner
+    options.AddFixedWindowLimiter("auth", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 10;
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.QueueLimit = 0;
+    });
+
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 
-// -------------------------------------------------------
-// 5. CORS
-// -------------------------------------------------------
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? Array.Empty<string>();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("CorsPolicy", policy =>
-        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+    {
+        if (builder.Environment.IsDevelopment() && allowedOrigins.Length == 0)
+        {
+            policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+            return;
+        }
+
+        var origins = allowedOrigins.Length > 0
+            ? allowedOrigins
+            : new[] { "http://localhost:3000", "http://localhost:3002", "https://e-commerce.local" };
+
+        policy.WithOrigins(origins)
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
 });
 
 var app = builder.Build();
 
-// -------------------------------------------------------
-// MIDDLEWARE PIPELINE
-// -------------------------------------------------------
 app.UseSerilogRequestLogging();
-
 app.UseCors("CorsPolicy");
+app.UseHttpMetrics();
 
-app.UseHttpMetrics(); // Prometheus metrikleri
+// Auth endpoint'leri için sıkı rate limit (login/register brute-force)
+var authHits = new ConcurrentDictionary<string, (int Count, DateTime WindowStart)>();
+app.Use(async (context, next) =>
+{
+    var path = context.Request.Path.Value ?? "";
+    if (path.Contains("/auth/login", StringComparison.OrdinalIgnoreCase)
+        || path.Contains("/auth/register", StringComparison.OrdinalIgnoreCase)
+        || path.Contains("/auth/forgot-password", StringComparison.OrdinalIgnoreCase))
+    {
+        var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var key = $"{ip}:{path.ToLowerInvariant()}";
+        var now = DateTime.UtcNow;
+        var entry = authHits.AddOrUpdate(
+            key,
+            _ => (1, now),
+            (_, prev) =>
+            {
+                if ((now - prev.WindowStart).TotalMinutes >= 1) return (1, now);
+                return (prev.Count + 1, prev.WindowStart);
+            });
 
-app.UseRateLimiter(); // Rate limiting
+        if (entry.Count > 10)
+        {
+            context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+            await context.Response.WriteAsync("Çok fazla deneme. Lütfen bir dakika sonra tekrar deneyin.");
+            return;
+        }
+    }
 
+    await next();
+});
+
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Prometheus /metrics endpoint'i
+app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "API.Gateway" }));
 app.MapMetrics();
-
-// YARP proxy - tüm route'ları yönetir
-// Rate limiting policy tüm proxy route'larına uygulanır
 app.MapReverseProxy().RequireRateLimiting("fixed");
 
 app.Run();
