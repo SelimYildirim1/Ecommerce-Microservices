@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Shopping.Aggregator.Models;
 using Shopping.Aggregator.Services;
+using System.Text.Json;
 
 namespace Shopping.Aggregator.Controllers;
 
@@ -124,6 +125,63 @@ public class AdminController : ControllerBase
         return Ok(new { orderId, req.Status });
     }
 
+    /// <summary>Müşteri listesi</summary>
+    [HttpGet("customers")]
+    public Task<IActionResult> GetCustomers([FromQuery] string? search)
+        => Proxy(_identityService.GetRawAsync(
+            "/api/auth/users" + (string.IsNullOrWhiteSpace(search) ? "" : $"?search={Uri.EscapeDataString(search)}"),
+            BearerToken()));
+
+    /// <summary>Müşteri detayı (roller ve adres defteri)</summary>
+    [HttpGet("customers/{userId}")]
+    public Task<IActionResult> GetCustomer(string userId)
+        => Proxy(_identityService.GetRawAsync($"/api/auth/users/{userId}", BearerToken()));
+
+    /// <summary>Müşteri hesabını engelle veya engeli kaldır</summary>
+    [HttpPut("customers/{userId}/block")]
+    public Task<IActionResult> BlockCustomer(string userId, [FromBody] JsonElement? body)
+        => Proxy(_identityService.PutAsync($"/api/auth/users/{userId}/block", body, BearerToken()));
+
+    /// <summary>Gateway'in ilettigi Authorization header'indan token'i alir.</summary>
+    private string? BearerToken()
+    {
+        var header = Request.Headers.Authorization.ToString();
+        return header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+            ? header["Bearer ".Length..].Trim()
+            : null;
+    }
+
+    /// <summary>İade talepleri (opsiyonel durum filtresi)</summary>
+    [HttpGet("returns")]
+    public Task<IActionResult> GetReturns([FromQuery] string? status)
+        => Proxy(_orderService.GetRawAsync(
+            "/api/orders/returns" + (string.IsNullOrWhiteSpace(status) ? "" : $"?status={status}")));
+
+    /// <summary>İade talebi detayı</summary>
+    [HttpGet("returns/{id:guid}")]
+    public Task<IActionResult> GetReturn(Guid id)
+        => Proxy(_orderService.GetRawAsync($"/api/orders/returns/{id}"));
+
+    /// <summary>İade talebini onayla</summary>
+    [HttpPut("returns/{id:guid}/approve")]
+    public Task<IActionResult> ApproveReturn(Guid id, [FromBody] JsonElement? body)
+        => Proxy(_orderService.PutAsync($"/api/orders/returns/{id}/approve", body));
+
+    /// <summary>İade talebini reddet</summary>
+    [HttpPut("returns/{id:guid}/reject")]
+    public Task<IActionResult> RejectReturn(Guid id, [FromBody] JsonElement? body)
+        => Proxy(_orderService.PutAsync($"/api/orders/returns/{id}/reject", body));
+
+    /// <summary>İade geri ödemesini tamamla</summary>
+    [HttpPut("returns/{id:guid}/refund")]
+    public Task<IActionResult> RefundReturn(Guid id, [FromBody] JsonElement? body)
+        => Proxy(_orderService.PutAsync($"/api/orders/returns/{id}/refund", body));
+
+    /// <summary>Siparişi iptal et</summary>
+    [HttpPost("orders/{orderId:guid}/cancel")]
+    public Task<IActionResult> CancelOrder(Guid orderId, [FromBody] JsonElement? body)
+        => Proxy(_orderService.PostAsync($"/api/orders/{orderId}/cancel", body));
+
     /// <summary>Ürün listesi (detaylı)</summary>
     [HttpGet("products")]
     public async Task<IActionResult> GetProducts()
@@ -172,6 +230,99 @@ public class AdminController : ControllerBase
     {
         var brands = await _catalogService.GetBrandsAsync();
         return Ok(brands);
+    }
+
+    // ----------------------------------------------------------------
+    //  YAZMA ISLEMLERI - Catalog.API admin controller'larina proxy
+    // ----------------------------------------------------------------
+
+    [HttpPost("products")]
+    public Task<IActionResult> CreateProduct([FromBody] JsonElement body)
+        => Proxy(_catalogService.PostAsync("/api/products", body));
+
+    [HttpPut("products/{id:guid}")]
+    public Task<IActionResult> UpdateProduct(Guid id, [FromBody] JsonElement body)
+        => Proxy(_catalogService.PutAsync($"/api/products/{id}", body));
+
+    [HttpDelete("products/{id:guid}")]
+    public Task<IActionResult> DeleteProduct(Guid id)
+        => Proxy(_catalogService.DeleteAsync($"/api/products/{id}"));
+
+    [HttpPut("products/{id:guid}/status")]
+    public Task<IActionResult> SetProductStatus(Guid id, [FromBody] JsonElement body)
+        => Proxy(_catalogService.PutAsync($"/api/products/{id}/status", body));
+
+    [HttpPut("products/{id:guid}/variants/{variantId:guid}")]
+    public Task<IActionResult> UpdateVariant(Guid id, Guid variantId, [FromBody] JsonElement body)
+        => Proxy(_catalogService.PutAsync($"/api/products/{id}/variants/{variantId}", body));
+
+    [HttpPost("categories")]
+    public Task<IActionResult> CreateCategory([FromBody] JsonElement body)
+        => Proxy(_catalogService.PostAsync("/api/admin/categories", body));
+
+    [HttpPut("categories/{id:guid}")]
+    public Task<IActionResult> UpdateCategory(Guid id, [FromBody] JsonElement body)
+        => Proxy(_catalogService.PutAsync($"/api/admin/categories/{id}", body));
+
+    [HttpDelete("categories/{id:guid}")]
+    public Task<IActionResult> DeleteCategory(Guid id)
+        => Proxy(_catalogService.DeleteAsync($"/api/admin/categories/{id}"));
+
+    [HttpPost("categories/{categoryId:guid}/attributes")]
+    public Task<IActionResult> AssignCategoryAttribute(Guid categoryId, [FromBody] JsonElement body)
+        => Proxy(_catalogService.PostAsync($"/api/admin/categories/{categoryId}/attributes", body));
+
+    [HttpDelete("categories/{categoryId:guid}/attributes/{attributeId:guid}")]
+    public Task<IActionResult> RemoveCategoryAttribute(Guid categoryId, Guid attributeId)
+        => Proxy(_catalogService.DeleteAsync(
+            $"/api/admin/categories/{categoryId}/attributes/{attributeId}"));
+
+    [HttpPost("brands")]
+    public Task<IActionResult> CreateBrand([FromBody] JsonElement body)
+        => Proxy(_catalogService.PostAsync("/api/admin/brands", body));
+
+    [HttpPut("brands/{id:guid}")]
+    public Task<IActionResult> UpdateBrand(Guid id, [FromBody] JsonElement body)
+        => Proxy(_catalogService.PutAsync($"/api/admin/brands/{id}", body));
+
+    [HttpDelete("brands/{id:guid}")]
+    public Task<IActionResult> DeleteBrand(Guid id)
+        => Proxy(_catalogService.DeleteAsync($"/api/admin/brands/{id}"));
+
+    [HttpPost("attributes")]
+    public Task<IActionResult> CreateAttribute([FromBody] JsonElement body)
+        => Proxy(_catalogService.PostAsync("/api/admin/attributes", body));
+
+    [HttpPut("attributes/{id:guid}")]
+    public Task<IActionResult> UpdateAttribute(Guid id, [FromBody] JsonElement body)
+        => Proxy(_catalogService.PutAsync($"/api/admin/attributes/{id}", body));
+
+    [HttpDelete("attributes/{id:guid}")]
+    public Task<IActionResult> DeleteAttribute(Guid id)
+        => Proxy(_catalogService.DeleteAsync($"/api/admin/attributes/{id}"));
+
+    /// <summary>Catalog.API'nin durum kodunu ve hata mesajini oldugu gibi aktarir.</summary>
+    private async Task<IActionResult> Proxy(Task<ProxyResult> call)
+    {
+        try
+        {
+            var result = await call;
+
+            if (result.Content is null)
+                return StatusCode(result.StatusCode);
+
+            return new ContentResult
+            {
+                StatusCode = result.StatusCode,
+                Content = result.Content,
+                ContentType = result.ContentType
+            };
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Alt servise ulasilamadi.");
+            return StatusCode(StatusCodes.Status502BadGateway, "Servise ulaşılamadı.");
+        }
     }
 
     /// <summary>Servis çağrısı başarısız olursa varsayılan değer döner</summary>

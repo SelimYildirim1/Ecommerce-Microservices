@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { useAuth } from "./AuthContext";
-import { API_URL } from "@/lib/api";
+import { API_URL, authHeaders } from "@/lib/api";
 
 interface CartContextType {
   cartCount: number;
@@ -27,6 +27,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     try {
       const res = await fetch(`${API_URL}/basket/${user.id}`, {
         cache: "no-store",
+        headers: authHeaders(),
       });
 
       if (res.ok) {

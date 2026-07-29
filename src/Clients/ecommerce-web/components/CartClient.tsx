@@ -4,7 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/context/CartContext";
 import Link from "next/link";
-import { API_URL } from "@/lib/api";
+import { ImageOff, ShoppingBag } from "lucide-react";
+import { API_URL, authHeaders } from "@/lib/api";
+import { resolveMediaUrl } from "@/lib/catalog";
 
 interface CartItem {
   quantity: number;
@@ -12,6 +14,7 @@ interface CartItem {
   price: number;
   productId: string;
   productName: string;
+  pictureUrl?: string | null;
 }
 
 interface Basket {
@@ -20,7 +23,14 @@ interface Basket {
   totalPrice: number;
 }
 
-export default function CartClient({ initialBasket }: { initialBasket: Basket | null }) {
+export default function CartClient({
+  initialBasket,
+  images = {},
+}: {
+  initialBasket: Basket | null;
+  /** Urun kimligine gore birincil gorsel; sepet servisi gorsel tutmadigi icin disaridan gelir. */
+  images?: Record<string, string>;
+}) {
   const [basket, setBasket] = useState<Basket | null>(initialBasket);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -38,7 +48,7 @@ export default function CartClient({ initialBasket }: { initialBasket: Basket | 
     try {
       const res = await fetch(`${API_URL}/basket`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ userName: basket.userName, items: updatedItems })
       });
 
@@ -85,16 +95,14 @@ export default function CartClient({ initialBasket }: { initialBasket: Basket | 
 
   if (!basket || !basket.items || basket.items.length === 0) {
     return (
-      <div className="text-center py-20 border border-border rounded-xl">
+      <div className="text-center py-20 border border-border rounded-2xl">
         <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 text-muted-foreground">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007ZM8.625 10.5a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm7.5 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
-          </svg>
+          <ShoppingBag className="w-8 h-8 text-muted-foreground" strokeWidth={1.5} />
         </div>
-        <h2 className="text-lg font-bold mb-1">Sepetiniz bos</h2>
-        <p className="text-muted-foreground text-sm mb-6">Hemen alisverise baslayin!</p>
+        <h2 className="font-display text-xl font-bold mb-1">Sepetiniz boş</h2>
+        <p className="text-muted-foreground text-sm mb-6">Hemen alışverişe başlayın!</p>
         <Link href="/" className="inline-flex items-center gap-2 px-6 py-2.5 bg-foreground text-white rounded-lg text-sm font-medium hover:bg-foreground/85 transition">
-          Alisverise Basla
+          Alışverişe Başla
         </Link>
       </div>
     );
@@ -104,24 +112,34 @@ export default function CartClient({ initialBasket }: { initialBasket: Basket | 
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
       {/* Product List */}
       <div className="lg:col-span-2">
-        <div className="border border-border rounded-xl overflow-hidden">
+        <div className="border border-border rounded-2xl overflow-hidden">
           <div className="bg-muted/30 px-5 py-3 border-b border-border">
             <h2 className="text-sm font-semibold uppercase tracking-wider">
-              Urunler ({basket.items.length})
+              Ürünler ({basket.items.length})
             </h2>
           </div>
 
           <div className="divide-y divide-border">
-            {basket.items.map((item) => (
+            {basket.items.map((item) => {
+              const image = item.pictureUrl || images[item.productId];
+
+              return (
               <div key={item.productId} className="flex items-center gap-4 p-5">
                 {/* Product Image */}
                 <Link
                   href={`/products/${item.productId}`}
-                  className="w-20 h-24 bg-muted rounded-lg flex items-center justify-center overflow-hidden border border-border shrink-0 hover:opacity-80 transition"
+                  className="w-20 h-24 bg-muted rounded-xl flex items-center justify-center overflow-hidden border border-border shrink-0 hover:opacity-80 transition"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor" className="w-8 h-8 text-muted-foreground/40">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21Z" />
-                  </svg>
+                  {image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={resolveMediaUrl(image)}
+                      alt={item.productName}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <ImageOff className="w-8 h-8 text-muted-foreground/40" strokeWidth={1} />
+                  )}
                 </Link>
 
                 {/* Info */}
@@ -160,7 +178,7 @@ export default function CartClient({ initialBasket }: { initialBasket: Basket | 
                       disabled={loading}
                       className="text-xs text-red-500 hover:text-red-600 font-medium hover:underline disabled:opacity-50 transition ml-2"
                     >
-                      Kaldir
+                      Kaldır
                     </button>
                   </div>
                 </div>
@@ -172,16 +190,17 @@ export default function CartClient({ initialBasket }: { initialBasket: Basket | 
                   </p>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
 
       {/* Order Summary */}
       <div className="lg:col-span-1">
-        <div className="border border-border rounded-xl overflow-hidden sticky top-24">
+        <div className="border border-border rounded-2xl overflow-hidden sticky top-24">
           <div className="bg-muted/30 px-5 py-3 border-b border-border">
-            <h2 className="text-sm font-semibold uppercase tracking-wider">Siparis Ozeti</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wider">Sipariş Özeti</h2>
           </div>
 
           <div className="p-5 space-y-3">
@@ -193,7 +212,7 @@ export default function CartClient({ initialBasket }: { initialBasket: Basket | 
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Kargo</span>
-              <span className="font-medium text-success">Ucretsiz</span>
+              <span className="font-medium text-success">Ücretsiz</span>
             </div>
 
             <div className="border-t border-border pt-3 mt-3">
@@ -209,7 +228,7 @@ export default function CartClient({ initialBasket }: { initialBasket: Basket | 
               onClick={() => router.push("/checkout")}
               className="w-full mt-4 py-3 bg-foreground text-white rounded-lg font-medium hover:bg-foreground/85 transition"
             >
-              Siparisi Tamamla
+              Siparişi Tamamla
             </button>
           </div>
         </div>

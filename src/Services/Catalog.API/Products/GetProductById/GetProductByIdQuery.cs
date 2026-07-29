@@ -3,4 +3,4 @@ using Catalog.API.Products.GetProducts;
 
 namespace Catalog.API.Products.GetProductById;
 
-public record GetProductByIdQuery(Guid Id) : IRequest<ProductDto?>;
+public record GetProductByIdQuery(Guid Id, bool IncludeInactive = false) : IRequest<ProductDto?>;

@@ -32,9 +32,17 @@
   /* Success */
   --success: 142 76% 36%;
   --success-foreground: 0 0% 100%;
+
+  /* Vitrin vurgu zemini (hero, kampanya alanlari) */
+  --cream: 42 38% 95%;
 }
 
 @theme {
+  /* Inter govde, Playfair Display baslik yazi tipi */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-playfair), ui-serif, Georgia, serif;
+
+  --color-cream: hsl(var(--cream));
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
   --color-card: hsl(var(--card));
@@ -55,6 +63,12 @@
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Bolum basliklarinda kullanilan serif aile */
+.font-display {
+  font-family: var(--font-playfair), ui-serif, Georgia, serif;
 }
 
 /* Smooth scrollbar */

@@ -65,7 +65,16 @@ builder.Services.AddOpenTelemetry()
 // --- SERVİSLERİN EKLENDİĞİ BÖLÜM (DI Container) ---
 
 // 1. Controller desteğini ekle
-builder.Services.AddControllers();
+// Enum'lar panelde okunabilir olsun diye string olarak serialize edilir
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(
+            new System.Text.Json.Serialization.JsonStringEnumConverter());
+    });
+
+// Stok hareketlerini tek noktadan yazan yardimci
+builder.Services.AddScoped<Catalog.API.Services.StockLedger>();
 
 // 2. Swagger desteğini ekle (API dokümantasyonu)
 builder.Services.AddEndpointsApiExplorer();
@@ -94,6 +103,7 @@ builder.Services.AddMassTransit(config =>
 {
     config.AddConsumer<OrderCreatedConsumer>();
     config.AddConsumer<PaymentFailedConsumer>();
+    config.AddConsumer<OrderStockReleaseConsumer>();
 
     config.UsingRabbitMq((ctx, _config) =>
     {
@@ -117,6 +127,12 @@ builder.Services.AddMassTransit(config =>
         _config.ReceiveEndpoint("catalog-payment-failed-queue", e =>
         {
             e.ConfigureConsumer<PaymentFailedConsumer>(ctx);
+        });
+
+        // İptal / iade stok iadesi
+        _config.ReceiveEndpoint("catalog-order-stock-release-queue", e =>
+        {
+            e.ConfigureConsumer<OrderStockReleaseConsumer>(ctx);
         });
     });
 });
@@ -166,6 +182,12 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+// Yuklenen urun gorselleri /uploads/... adresinden servis edilir
+var webRootPath = app.Environment.WebRootPath
+    ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot");
+Directory.CreateDirectory(Path.Combine(webRootPath, "uploads"));
+app.UseStaticFiles();
 
 app.UseAuthorization();
 

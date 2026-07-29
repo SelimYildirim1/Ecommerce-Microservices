@@ -1,8 +1,10 @@
 import CartClient from "@/components/CartClient";
 import Header from "@/components/Header";
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { INTERNAL_API_URL } from "@/lib/api";
+import { serverFetch, serverFetchJson } from "@/lib/server-fetch";
 
 function decodeJwtPayload(token: string): any {
   const parts = token.split(".");
@@ -17,18 +19,18 @@ async function getUserIdFromCookie() {
   if (token) {
     try {
       const decoded = decodeJwtPayload(token.value);
-      return decoded.sub || null;
+      return { userId: decoded.sub || null, token: token.value };
     } catch (e) {
-      return null;
+      return { userId: null, token: null };
     }
   }
-  return null;
+  return { userId: null, token: null };
 }
 
-async function getBasket(userId: string) {
+async function getBasket(userId: string, token: string) {
   try {
-    const res = await fetch(`${INTERNAL_API_URL}/basket/${userId}`, {
-      cache: "no-store",
+    const res = await serverFetch(`/basket/${userId}`, {
+      headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return null;
     return await res.json();
@@ -38,29 +40,54 @@ async function getBasket(userId: string) {
   }
 }
 
-export default async function CartPage() {
-  const userId = await getUserIdFromCookie();
-  if (!userId) redirect("/login");
+/**
+ * Sepet servisi gorsel tutmaz; kartlarda urun fotografi gosterebilmek icin
+ * katalogdan urun basina birincil gorsel toplanir.
+ */
+async function getItemImages(productIds: string[]): Promise<Record<string, string>> {
+  const entries = await Promise.all(
+    productIds.map(async (id) => {
+      const product = await serverFetchJson<{
+        primaryImageUrl?: string;
+        pictureUrl?: string;
+      } | null>(`/catalog/products/${id}`, null);
+      if (!product) return null;
+      const url = product.primaryImageUrl ?? product.pictureUrl;
+      return typeof url === "string" && url.length > 0 ? ([id, url] as const) : null;
+    }),
+  );
 
-  const basket = await getBasket(userId);
+  return Object.fromEntries(entries.filter((entry) => entry !== null));
+}
+
+export default async function CartPage() {
+  const { userId, token } = await getUserIdFromCookie();
+  if (!userId || !token) redirect("/login");
+
+  const basket = await getBasket(userId, token);
+
+  const productIds: string[] = Array.isArray(basket?.items)
+    ? Array.from(new Set(basket.items.map((item: { productId: string }) => item.productId)))
+    : [];
+  const images = productIds.length > 0 ? await getItemImages(productIds) : {};
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <div className="bg-white text-gray-900">
       <Header />
 
-      <div className="max-w-[1440px] mx-auto px-4 lg:px-8 py-8">
-        {/* Breadcrumb */}
-        <nav className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
-          <a href="/" className="hover:text-foreground transition">Anasayfa</a>
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3">
-            <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-          </svg>
-          <span className="text-foreground font-medium">Sepetim</span>
+      <main className="mx-auto max-w-[1600px] px-6 py-8 md:px-12">
+        <nav className="mb-4 flex items-center gap-1.5 text-sm text-gray-500">
+          <Link href="/" className="transition-colors hover:text-gray-900">
+            Anasayfa
+          </Link>
+          <ChevronRight className="h-3.5 w-3.5" />
+          <span className="font-medium text-gray-900">Sepetim</span>
         </nav>
 
-        <h1 className="text-2xl font-bold mb-8">Sepetim</h1>
-        <CartClient initialBasket={basket} />
-      </div>
-    </main>
+        <h1 className="font-display mb-8 text-3xl font-bold md:text-4xl">Sepetim</h1>
+        <CartClient initialBasket={basket} images={images} />
+      </main>
+
+    </div>
   );
 }

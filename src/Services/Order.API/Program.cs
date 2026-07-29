@@ -1,7 +1,9 @@
 using MassTransit;
 using MediatR;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.Tokens;
 using Order.API.Consumers; // Consumer'ın olduğu yer
 using Order.API.Data;
 using Serilog;
@@ -12,6 +14,8 @@ using Order.API.Hubs;
 using Prometheus;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using System.Security.Claims;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -74,12 +78,56 @@ builder.Services.AddOpenTelemetry()
     });
 
 // 1. Controller ve Swagger
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // Iade durum/neden enum'lari isim olarak serilestirilir
+        options.JsonSerializerOptions.Converters.Add(
+            new System.Text.Json.Serialization.JsonStringEnumConverter());
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 // SignalR (Gerçek zamanlı sipariş durumu için)
 builder.Services.AddSignalR();
+
+// JWT — Identity ile aynı secret (env: JwtSettings__Secret)
+var jwtSecret = builder.Configuration["JwtSettings:Secret"]
+    ?? builder.Configuration["Jwt:SecretKey"]
+    ?? "bu_benim_cok_gizli_sifrem_ecommerce_project_secret_key_12345";
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero,
+            RoleClaimType = ClaimTypes.Role,
+            NameClaimType = ClaimTypes.NameIdentifier
+        };
+
+        // SignalR access_token query / header
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
+    });
+
+builder.Services.AddAuthorization();
 
 // CORS - Next.js (http://localhost:3000) üzerinden gelen SignalR bağlantılarını kabul et
 builder.Services.AddCors(options =>
@@ -87,7 +135,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("CorsPolicy", policy =>
     {
         policy
-            .WithOrigins("http://localhost:3000")
+            .WithOrigins("http://localhost:3000", "http://localhost:3002")
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
@@ -207,6 +255,7 @@ if (app.Environment.IsDevelopment())
 // CORS, auth'dan önce olmalı
 app.UseCors("CorsPolicy");
 
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 

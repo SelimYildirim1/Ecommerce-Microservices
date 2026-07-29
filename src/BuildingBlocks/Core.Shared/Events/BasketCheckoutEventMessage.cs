@@ -13,9 +13,9 @@ public class BasketCheckoutEventMessage : BasketCheckoutEvent
     public string EmailAddress { get; set; } = default!;
     public string AddressLine { get; set; } = default!;
     
-    // Kart Bilgileri (Payment için gerekli)
-    public string CardName { get; set; } = default!;
-    public string CardNumber { get; set; } = default!;
-    public string Expiration { get; set; } = default!;
-    public string CVV { get; set; } = default!;
+    // Kart Bilgileri (geriye dönük; yeni yayınlarda boş)
+    public string? CardName { get; set; }
+    public string? CardNumber { get; set; }
+    public string? Expiration { get; set; }
+    public string? CVV { get; set; }
 }

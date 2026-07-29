@@ -1,22 +1,30 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Suspense } from "react";
+import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
+import FooterSlot from "@/components/FooterSlot";
+import SiteFooter from "@/components/SiteFooter";
+import CookieBanner from "@/components/CookieBanner";
 import { AuthProvider } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
+import { FavoritesProvider } from "@/context/FavoritesContext";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin", "latin-ext"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const playfair = Playfair_Display({
+  variable: "--font-playfair",
+  subsets: ["latin", "latin-ext"],
+  weight: ["600", "700"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Yildirim Store | Online Alisveris",
-  description: "En yeni urunler, en uygun fiyatlarla Yildirim Store'da.",
+  title: "Yıldırım Store | Online Alışveriş",
+  description: "En yeni ürünler, en uygun fiyatlarla Yıldırım Store'da.",
 };
 
 export default function RootLayout({
@@ -26,15 +34,23 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="tr">
-      <AuthProvider>
-        <CartProvider>
-          <body
-            className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-          >
-            {children}
-          </body>
-        </CartProvider>
-      </AuthProvider>
+      <body
+        className={`${inter.variable} ${playfair.variable} flex min-h-screen flex-col antialiased selection:bg-foreground selection:text-white`}
+      >
+        <AuthProvider>
+          <CartProvider>
+            <FavoritesProvider>
+              <div className="flex-1">{children}</div>
+              <FooterSlot>
+                <Suspense fallback={null}>
+                  <SiteFooter />
+                </Suspense>
+              </FooterSlot>
+              <CookieBanner />
+            </FavoritesProvider>
+          </CartProvider>
+        </AuthProvider>
+      </body>
     </html>
   );
 }

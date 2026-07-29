@@ -1,29 +1,32 @@
 using MassTransit;
 using Core.Shared.Events;
+using Notification.API.Services;
 
 namespace Notification.API.Consumers;
 
 public class PaymentFailedConsumer : IConsumer<PaymentFailedEvent>
 {
+    private readonly IEmailSender _emailSender;
     private readonly ILogger<PaymentFailedConsumer> _logger;
 
-    public PaymentFailedConsumer(ILogger<PaymentFailedConsumer> logger)
+    public PaymentFailedConsumer(
+        IEmailSender emailSender,
+        ILogger<PaymentFailedConsumer> logger)
     {
+        _emailSender = emailSender;
         _logger = logger;
     }
 
-    public Task Consume(ConsumeContext<PaymentFailedEvent> context)
+    public async Task Consume(ConsumeContext<PaymentFailedEvent> context)
     {
         var message = context.Message;
-        
-        // Gerçek dünyada burada SMTP ile mail atılır.
-        // Biz loglara yazarak simüle ediyoruz.
-        
-        _logger.LogWarning($"📧 ÖDEME BAŞARISIZ BİLDİRİMİ GÖNDERİLDİ: {message.Email}");
-        _logger.LogWarning($"   Sipariş ID: {message.OrderId}");
-        _logger.LogWarning($"   Sebep: {message.Reason}");
-        _logger.LogWarning("   Sayın Müşterimiz, ödemeniz alınamadığı için siparişiniz iptal edilmiştir.");
 
-        return Task.CompletedTask;
+        _logger.LogWarning(
+            "Ödeme başarısız bildirimi hazırlanıyor. OrderId={OrderId}, Sebep={Reason}",
+            message.OrderId, message.Reason);
+
+        var (subject, body) = EmailTemplates.PaymentFailed(message.OrderId, message.Reason);
+
+        await _emailSender.SendAsync(message.Email, subject, body, context.CancellationToken);
     }
 }

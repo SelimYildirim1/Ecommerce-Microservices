@@ -38,6 +38,12 @@ metadata:
     nginx.ingress.kubernetes.io/enable-cors: "true"
 spec:
   ingressClassName: nginx
+  # TLS: cert-manager veya manuel secret ile doldurun.
+  # kubectl -n ecommerce create secret tls ecommerce-tls --cert=fullchain.pem --key=privkey.pem
+  tls:
+    - hosts:
+        - e-commerce.local
+      secretName: ecommerce-tls
   rules:
     - host: e-commerce.local
       http:
@@ -77,6 +83,10 @@ metadata:
     nginx.ingress.kubernetes.io/enable-cors: "true"
 spec:
   ingressClassName: nginx
+  tls:
+    - hosts:
+        - e-commerce.local
+      secretName: ecommerce-tls
   rules:
     - host: e-commerce.local
       http:
@@ -108,6 +118,10 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-buffers-number: "4"
 spec:
   ingressClassName: nginx
+  tls:
+    - hosts:
+        - e-commerce.local
+      secretName: ecommerce-tls
   rules:
     - host: e-commerce.local
       http:

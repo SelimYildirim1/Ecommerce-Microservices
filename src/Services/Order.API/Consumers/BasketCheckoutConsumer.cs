@@ -25,8 +25,7 @@ public class BasketCheckoutConsumer : IConsumer<BasketCheckoutEvent>
     public async Task Consume(ConsumeContext<BasketCheckoutEvent> context)
     {
         var msg = context.Message;
-        _logger.LogInformation("Yeni sipariş mesajı geldi. Kullanıcı={UserName}, CardName={CardName}",
-            msg.UserName, msg.CardName);
+        _logger.LogInformation("Yeni sipariş mesajı geldi. Kullanıcı={UserName}", msg.UserName);
 
         var address = new Address(
             street: msg.AddressLine,
@@ -42,11 +41,13 @@ public class BasketCheckoutConsumer : IConsumer<BasketCheckoutEvent>
             description: ""
         );
 
+        order.SetContact(msg.FirstName, msg.LastName, msg.EmailAddress);
+
         if (msg.BasketItems != null && msg.BasketItems.Count > 0)
         {
             foreach (var item in msg.BasketItems)
             {
-                if (string.IsNullOrEmpty(item.ProductId) || !int.TryParse(item.ProductId, out var productId))
+                if (string.IsNullOrEmpty(item.ProductId) || !Guid.TryParse(item.ProductId, out var productId))
                 {
                     _logger.LogWarning("Geçersiz ProductId atlanıyor: {ProductId}", item.ProductId ?? "(null)");
                     continue;
@@ -56,12 +57,22 @@ public class BasketCheckoutConsumer : IConsumer<BasketCheckoutEvent>
                     productId: productId,
                     productName: item.ProductName ?? "-",
                     unitPrice: item.Price,
-                    pictureUrl: item.PictureUrl ?? "",
+                    pictureUrl: item.PictureUrl,
                     units: item.Quantity,
-                    selectedAttributes: ""
+                    selectedAttributes: null
                 );
             }
         }
+
+        // Sepet servisi kupon/kargo kirilimini de gonderir; eski mesajlarda bu alanlar 0'dir
+        var itemsTotal = order.OrderItems.Sum(i => i.UnitPrice * i.Units);
+        var total = msg.TotalPrice > 0 ? msg.TotalPrice : itemsTotal;
+
+        order.SetTotals(
+            totalPrice: total,
+            discountAmount: msg.DiscountAmount,
+            couponCode: msg.CouponCode,
+            shippingCost: msg.ShippingCost);
 
         _dbContext.Orders.Add(order);
         await _dbContext.SaveChangesAsync();
@@ -75,10 +86,10 @@ public class BasketCheckoutConsumer : IConsumer<BasketCheckoutEvent>
             BuyerId = order.BuyerId,
             Email = msg.EmailAddress,
             TotalPrice = order.TotalAmount,
-            CardName = msg.CardName,
-            CardNumber = msg.CardNumber,
-            Expiration = msg.Expiration,
-            CVV = msg.CVV,
+            CardName = string.Empty,
+            CardNumber = string.Empty,
+            Expiration = string.Empty,
+            CVV = string.Empty,
             OrderItems = order.OrderItems.Select(i => new OrderItemMessage
             {
                 ProductId = i.ProductId.ToString(),

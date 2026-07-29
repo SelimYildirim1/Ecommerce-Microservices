@@ -2,18 +2,20 @@ namespace Order.API.Entities;
 
 public class OrderItem : BaseEntity
 {
-    // Ürün Bilgisi (Referans)
-    public int ProductId { get; private set; }
+    // Ürün Bilgisi (Referans) — Catalog'daki ürün Id'si
+    public Guid ProductId { get; private set; }
     public string ProductName { get; private set; } = default!;
-    public string PictureUrl { get; private set; } = default!;
+    public string? PictureUrl { get; private set; }
 
-    // Satış Bilgisi
+    /// <summary>Birim fiyat. Veritabaninda "Price" kolonunda tutulur.</summary>
     public decimal UnitPrice { get; private set; }
+
+    /// <summary>Adet. Veritabaninda "Quantity" kolonunda tutulur.</summary>
     public int Units { get; private set; }
 
     // Müşterinin seçtiği varyant özellikleri
     // Örn: "Renk: Kırmızı, Beden: L" veya JSON formatında
-    public string SelectedAttributes { get; private set; } = default!;
+    public string? SelectedAttributes { get; private set; }
 
     // Hangi siparişe ait? (Foreign Key)
     public Guid OrderId { get; set; }
@@ -21,8 +23,8 @@ public class OrderItem : BaseEntity
 
     public OrderItem() { }
 
-    public OrderItem(int productId, string productName, string pictureUrl,
-        decimal unitPrice, int units, string selectedAttributes)
+    public OrderItem(Guid productId, string productName, string? pictureUrl,
+        decimal unitPrice, int units, string? selectedAttributes)
     {
         ProductId = productId;
         ProductName = productName;

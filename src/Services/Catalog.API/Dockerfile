@@ -15,6 +15,9 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 COPY --from=build /app/out .
 
+# Yuklenen urun gorselleri icin kalici dizin (docker-compose'da volume baglanir)
+RUN mkdir -p /app/wwwroot/uploads
+
 # Docker içinde API 8080 portundan yayın yapar
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
