@@ -7,6 +7,9 @@ public class ApplicationUser : IdentityUser
     public string FirstName { get; set; } = default!;
     public string LastName { get; set; } = default!;
 
+    /// <summary>Kayit tarihi. Eski kayitlarda varsayilan deger atanir.</summary>
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
     // Kullanıcının kayıtlı adresleri
     public ICollection<UserAddress> Addresses { get; set; } = new List<UserAddress>();
 }

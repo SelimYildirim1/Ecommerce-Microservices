@@ -16,6 +16,12 @@ public class CatalogDbContext : DbContext
     public DbSet<Category> Categories { get; set; }
     public DbSet<CategoryAttribute> CategoryAttributes { get; set; }
     public DbSet<Brand> Brands { get; set; }
+    public DbSet<ProductReview> ProductReviews { get; set; }
+    public DbSet<Favorite> Favorites { get; set; }
+    public DbSet<StockMovement> StockMovements { get; set; }
+    public DbSet<SiteSetting> SiteSettings { get; set; }
+    public DbSet<Banner> Banners { get; set; }
+    public DbSet<StaticPage> StaticPages { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -75,9 +81,14 @@ public class CatalogDbContext : DbContext
                   .HasForeignKey(p => p.BrandId)
                   .OnDelete(DeleteBehavior.Restrict);
 
+            entity.Property(p => p.Slug).HasMaxLength(200);
+            entity.Property(p => p.MetaTitle).HasMaxLength(200);
+            entity.Property(p => p.MetaDescription).HasMaxLength(500);
+
             entity.HasIndex(p => p.CategoryId);
             entity.HasIndex(p => p.BrandId);
             entity.HasIndex(p => p.Name);
+            entity.HasIndex(p => p.Slug);
         });
 
         // ---- ProductVariant ----
@@ -105,6 +116,89 @@ public class CatalogDbContext : DbContext
                   .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasIndex(i => i.ProductId);
+        });
+
+        // ---- ProductReview ----
+        modelBuilder.Entity<ProductReview>(entity =>
+        {
+            entity.HasOne(r => r.Product)
+                  .WithMany(p => p.Reviews)
+                  .HasForeignKey(r => r.ProductId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.Property(r => r.UserId).IsRequired().HasMaxLength(200);
+            entity.Property(r => r.UserName).IsRequired().HasMaxLength(200);
+            entity.Property(r => r.Title).HasMaxLength(200);
+            entity.Property(r => r.Comment).HasMaxLength(2000);
+            entity.Property(r => r.ModeratorNote).HasMaxLength(500);
+
+            entity.HasIndex(r => r.ProductId);
+            entity.HasIndex(r => new { r.ProductId, r.UserId });
+        });
+
+        // ---- Favorite ----
+        modelBuilder.Entity<Favorite>(entity =>
+        {
+            entity.HasOne(f => f.Product)
+                  .WithMany()
+                  .HasForeignKey(f => f.ProductId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.Property(f => f.UserId).IsRequired().HasMaxLength(200);
+
+            // Ayni urun bir kullanicida bir kez bulunur
+            entity.HasIndex(f => new { f.UserId, f.ProductId }).IsUnique();
+        });
+
+        // ---- StockMovement ----
+        modelBuilder.Entity<StockMovement>(entity =>
+        {
+            entity.HasOne(m => m.ProductVariant)
+                  .WithMany()
+                  .HasForeignKey(m => m.ProductVariantId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.Property(m => m.Reference).HasMaxLength(200);
+            entity.Property(m => m.Note).HasMaxLength(500);
+            entity.Property(m => m.CreatedBy).IsRequired().HasMaxLength(200);
+
+            entity.HasIndex(m => m.ProductVariantId);
+            entity.HasIndex(m => m.ProductId);
+            entity.HasIndex(m => m.CreatedAt);
+        });
+
+        // ---- SiteSetting ----
+        modelBuilder.Entity<SiteSetting>(entity =>
+        {
+            entity.Property(s => s.Key).IsRequired().HasMaxLength(100);
+            entity.Property(s => s.Group).IsRequired().HasMaxLength(50);
+            entity.Property(s => s.Value).HasMaxLength(2000);
+            entity.Property(s => s.Description).HasMaxLength(300);
+
+            entity.HasIndex(s => s.Key).IsUnique();
+        });
+
+        // ---- Banner ----
+        modelBuilder.Entity<Banner>(entity =>
+        {
+            entity.Property(b => b.Title).IsRequired().HasMaxLength(200);
+            entity.Property(b => b.Subtitle).HasMaxLength(300);
+            entity.Property(b => b.ImageUrl).IsRequired().HasMaxLength(500);
+            entity.Property(b => b.LinkUrl).HasMaxLength(500);
+            entity.Property(b => b.Placement).IsRequired().HasMaxLength(50);
+
+            entity.HasIndex(b => new { b.Placement, b.SortOrder });
+        });
+
+        // ---- StaticPage ----
+        modelBuilder.Entity<StaticPage>(entity =>
+        {
+            entity.Property(p => p.Slug).IsRequired().HasMaxLength(150);
+            entity.Property(p => p.Title).IsRequired().HasMaxLength(200);
+            entity.Property(p => p.MetaTitle).HasMaxLength(200);
+            entity.Property(p => p.MetaDescription).HasMaxLength(500);
+
+            entity.HasIndex(p => p.Slug).IsUnique();
         });
     }
 }

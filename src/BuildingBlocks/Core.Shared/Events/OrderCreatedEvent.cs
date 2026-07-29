@@ -13,8 +13,9 @@ public class OrderCreatedEvent
 
     public List<OrderItemMessage> OrderItems { get; set; } = new();
 
-    public string CardName { get; set; } = default!;
-    public string CardNumber { get; set; } = default!;
-    public string Expiration { get; set; } = default!;
-    public string CVV { get; set; } = default!;
+    // Geriye dönük uyumluluk — yeni yayınlarda boş
+    public string? CardName { get; set; }
+    public string? CardNumber { get; set; }
+    public string? Expiration { get; set; }
+    public string? CVV { get; set; }
 }

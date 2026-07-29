@@ -75,6 +75,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpMetrics(); // Prometheus HTTP metrikleri
 app.MapControllers();
+app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "Payment.API" }));
 app.MapMetrics();     // /metrics endpoint'i
 
 app.Run();

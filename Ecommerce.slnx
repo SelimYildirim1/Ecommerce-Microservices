@@ -13,5 +13,10 @@
     <Project Path="src/Services/Notification.API/Notification.API.csproj" />
     <Project Path="src/Services/Order.API/Order.API.csproj" />
     <Project Path="src/Services/Payment.API/Payment.API.csproj" />
+    <Project Path="src/Services/Promotion.API/Promotion.API.csproj" />
+    <Project Path="src/Services/Shipping.API/Shipping.API.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Ecommerce.UnitTests/Ecommerce.UnitTests.csproj" />
   </Folder>
 </Solution>

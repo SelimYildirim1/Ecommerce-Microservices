@@ -75,6 +75,9 @@ services:
       - OpenTelemetry__Endpoint=http://ecommerce-jaeger:4317
     ports:
       - "5002:8080"
+    volumes:
+      # Yuklenen urun gorselleri container yeniden olusturulunca kaybolmasin
+      - catalog_uploads:/app/wwwroot/uploads
     depends_on:
       postgres-db:
         condition: service_healthy
@@ -93,6 +96,8 @@ services:
       - ConnectionStrings__Redis=redis-db:6379
       # Basket API, Catalog API ile konuşurken servis ismini kullanmalı!
       - Services__CatalogApi=http://catalog-api:8080
+      - Services__PromotionApi=http://promotion-api:8080
+      - Services__ShippingApi=http://shipping-api:8080
       - RabbitMQ__HostName=rabbitmq
       - OpenTelemetry__Endpoint=http://ecommerce-jaeger:4317
     ports:
@@ -124,6 +129,38 @@ services:
     networks:
       - ecommerce-network
 
+  promotion.api:
+    build:
+      context: .
+      dockerfile: src/Services/Promotion.API/Dockerfile
+    container_name: promotion-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=PromotionDb;User Id=postgres;Password=postgres;
+    ports:
+      - "5070:8080"
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+
+  shipping.api:
+    build:
+      context: .
+      dockerfile: src/Services/Shipping.API/Dockerfile
+    container_name: shipping-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=ShippingDb;User Id=postgres;Password=postgres;
+    ports:
+      - "5071:8080"
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+
   payment.api:
     build:
       context: .
@@ -137,6 +174,36 @@ services:
       - "5277:8080"
     depends_on:
       - rabbitmq
+    networks:
+      - ecommerce-network
+
+  # Gelistirme icin sahte SMTP sunucusu. Gonderilen tum e-postalar
+  # http://localhost:8025 adresindeki arayuzde gorulur, disariya cikmaz.
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: ecommerce-mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - ecommerce-network
+
+  notification.api:
+    build:
+      context: .
+      dockerfile: src/Services/Notification.API/Dockerfile
+    container_name: notification-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - RabbitMQ__HostName=rabbitmq
+      - OpenTelemetry__Endpoint=http://ecommerce-jaeger:4317
+      - Smtp__Host=mailhog
+      - Smtp__Port=1025
+    ports:
+      - "5300:8080"
+    depends_on:
+      - rabbitmq
+      - mailhog
     networks:
       - ecommerce-network
 
@@ -169,8 +236,18 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - Identity__Url=http://identity-api:8080
       - OpenTelemetry__Endpoint=http://ecommerce-jaeger:4317
+      # appsettings.Development.json localhost'a isaret ediyor (host'ta dotnet run icin).
+      # Container icinde servis isimleriyle ezilmeli.
+      - ReverseProxy__Clusters__aggregator-cluster__Destinations__aggregator__Address=http://shopping-aggregator:8080
+      - ReverseProxy__Clusters__catalog-cluster__Destinations__catalog__Address=http://catalog-api:8080
+      - ReverseProxy__Clusters__basket-cluster__Destinations__basket__Address=http://basket-api:8080
+      - ReverseProxy__Clusters__order-cluster__Destinations__order__Address=http://order-api:8080
+      - ReverseProxy__Clusters__identity-cluster__Destinations__identity__Address=http://identity-api:8080
+      - ReverseProxy__Clusters__promotion-cluster__Destinations__promotion__Address=http://promotion-api:8080
+      - ReverseProxy__Clusters__shipping-cluster__Destinations__shipping__Address=http://shipping-api:8080
     ports:
-      - "8000:8080"
+      # Host 8000 Cursor vb. tarafindan tutulabiliyor; 8001 kullan
+      - "8001:8080"
     depends_on:
       - identity.api
       - catalog.api
@@ -194,7 +271,9 @@ services:
       - WATCHPACK_POLLING=true
       # API Gateway adresi - Tarayıcı erişimi için localhost kullanılır
       # (NEXT_PUBLIC_ değişkenleri client-side'da çalışır, Docker hostname çözülemez)
-      - NEXT_PUBLIC_API_GATEWAY_URL=http://localhost:8000
+      - NEXT_PUBLIC_API_GATEWAY_URL=http://localhost:8001
+      # SSR fetch'ler container içinden gateway'e gider (localhost:8001 burada çalışmaz)
+      - INTERNAL_API_URL=http://api-gateway:8080
     ports:
       - "3000:3000"
     volumes:
@@ -212,9 +291,12 @@ services:
     networks:
       - ecommerce-network
 
+  # Profiling: sadece `docker compose --profile monitoring up` veya
+  # `./scripts/start-docker.sh --full` ile baslar. Gunluk gelistirmede RAM tasarrufu.
   seq:
     image: datalust/seq:latest
     container_name: ecommerce-seq
+    profiles: ["monitoring"]
     environment:
       - ACCEPT_EULA=Y
       - SEQ_FIRSTRUN_ADMINPASSWORD=kRd4gGetLSybzd6
@@ -229,6 +311,7 @@ services:
   jaeger:
     image: jaegertracing/all-in-one:latest
     container_name: ecommerce-jaeger
+    profiles: ["monitoring"]
     environment:
       - COLLECTOR_OTLP_ENABLED=true
     ports:
@@ -243,6 +326,7 @@ services:
   prometheus:
     image: prom/prometheus:latest
     container_name: ecommerce-prometheus
+    profiles: ["monitoring"]
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     command:
@@ -265,6 +349,7 @@ services:
   grafana:
     image: grafana/grafana:latest
     container_name: ecommerce-grafana
+    profiles: ["monitoring"]
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
@@ -282,6 +367,7 @@ services:
 volumes:
   postgres_data:
   grafana_data:
+  catalog_uploads:
 
 networks:
   ecommerce-network:

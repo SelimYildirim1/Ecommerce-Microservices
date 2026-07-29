@@ -25,6 +25,7 @@ export const ORDER_STATUS_MAP: Record<string, { label: string; variant: "default
   Shipped: { label: "Kargoda", variant: "outline" },
   Delivered: { label: "Teslim Edildi", variant: "default" },
   Cancelled: { label: "İptal", variant: "destructive" },
+  Returned: { label: "İade Edildi", variant: "outline" },
   Failed: { label: "Başarısız", variant: "destructive" },
   StockFailed: { label: "Stok Yetersiz", variant: "destructive" },
 };

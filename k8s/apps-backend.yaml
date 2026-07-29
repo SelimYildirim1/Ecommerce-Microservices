@@ -45,7 +45,7 @@ spec:
             - containerPort: 8080
           env:
             - name: ASPNETCORE_ENVIRONMENT
-              value: "Development"
+              value: "Production"
             - name: ConnectionStrings__DefaultConnection
               value: "Server=postgres-db;Port=5432;Database=IdentityDb;User Id=postgres;Password=postgres;"
             - name: RabbitMQ__HostName
@@ -117,7 +117,7 @@ spec:
             - containerPort: 8080
           env:
             - name: ASPNETCORE_ENVIRONMENT
-              value: "Development"
+              value: "Production"
             - name: ConnectionStrings__DefaultConnection
               value: "Server=postgres-db;Port=5432;Database=CatalogDb;User Id=postgres;Password=postgres;"
             - name: RabbitMQ__HostName
@@ -189,7 +189,7 @@ spec:
             - containerPort: 8080
           env:
             - name: ASPNETCORE_ENVIRONMENT
-              value: "Development"
+              value: "Production"
             - name: ConnectionStrings__Redis
               value: "redis-db:6379"
             - name: Services__CatalogApi
@@ -263,7 +263,7 @@ spec:
             - containerPort: 8080
           env:
             - name: ASPNETCORE_ENVIRONMENT
-              value: "Development"
+              value: "Production"
             - name: ConnectionStrings__DefaultConnection
               value: "Server=postgres-db;Port=5432;Database=OrderDb;User Id=postgres;Password=postgres;"
             - name: RabbitMQ__HostName
@@ -335,7 +335,7 @@ spec:
             - containerPort: 8080
           env:
             - name: ASPNETCORE_ENVIRONMENT
-              value: "Development"
+              value: "Production"
             - name: RabbitMQ__HostName
               value: "rabbitmq"
             - name: OpenTelemetry__Endpoint
@@ -407,7 +407,7 @@ spec:
             - containerPort: 8080
           env:
             - name: ASPNETCORE_ENVIRONMENT
-              value: "Development"
+              value: "Production"
             - name: Identity__Url
               value: "http://identity-api:8080"
             - name: OpenTelemetry__Endpoint
@@ -488,7 +488,7 @@ spec:
             - containerPort: 8080
           env:
             - name: ASPNETCORE_ENVIRONMENT
-              value: "Development"
+              value: "Production"
             - name: Services__OrderApi
               value: "http://order-api:8080"
             - name: Services__CatalogApi

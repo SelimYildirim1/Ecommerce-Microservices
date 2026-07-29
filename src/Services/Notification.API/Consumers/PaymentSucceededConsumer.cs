@@ -1,28 +1,32 @@
 using MassTransit;
 using Core.Shared.Events;
+using Notification.API.Services;
 
 namespace Notification.API.Consumers;
 
 public class PaymentSucceededConsumer : IConsumer<PaymentSucceededEvent>
 {
+    private readonly IEmailSender _emailSender;
     private readonly ILogger<PaymentSucceededConsumer> _logger;
 
-    public PaymentSucceededConsumer(ILogger<PaymentSucceededConsumer> logger)
+    public PaymentSucceededConsumer(
+        IEmailSender emailSender,
+        ILogger<PaymentSucceededConsumer> logger)
     {
+        _emailSender = emailSender;
         _logger = logger;
     }
 
-    public Task Consume(ConsumeContext<PaymentSucceededEvent> context)
+    public async Task Consume(ConsumeContext<PaymentSucceededEvent> context)
     {
         var message = context.Message;
-        
-        _logger.LogInformation("🔔 BİLDİRİM SERVİSİ TETİKLENDİ!");
-        _logger.LogInformation("--------------------------------------------------");
-        _logger.LogInformation($"📧 E-POSTA GÖNDERİLİYOR: {message.Email}");
-        _logger.LogInformation($"📄 Sipariş ID: {message.OrderId}");
-        _logger.LogInformation("✅ Mesaj: 'Ödemeniz başarıyla alınmıştır. Siparişiniz hazırlanıyor.'");
-        _logger.LogInformation("--------------------------------------------------");
 
-        return Task.CompletedTask;
+        _logger.LogInformation(
+            "Ödeme başarılı bildirimi hazırlanıyor. OrderId={OrderId}, Alıcı={Email}",
+            message.OrderId, message.Email);
+
+        var (subject, body) = EmailTemplates.PaymentSucceeded(message.OrderId);
+
+        await _emailSender.SendAsync(message.Email, subject, body, context.CancellationToken);
     }
 }

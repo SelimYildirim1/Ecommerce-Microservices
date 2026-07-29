@@ -1,7 +1,9 @@
 using Catalog.API.Categories.GetCategoryFilters;
+using Catalog.API.Data;
 using Catalog.API.Products.GetProductsByCategory;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Catalog.API.Controllers;
 
@@ -10,10 +12,35 @@ namespace Catalog.API.Controllers;
 public class CategoriesController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly CatalogDbContext _context;
 
-    public CategoriesController(IMediator mediator)
+    public CategoriesController(IMediator mediator, CatalogDbContext context)
     {
         _mediator = mediator;
+        _context = context;
+    }
+
+    /// <summary>
+    /// Vitrin menüsü ve kategori şeridi için tüm kategorileri döner.
+    /// Görseli olan kategoriler ana sayfadaki şeritte gösterilir.
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> GetCategories(CancellationToken ct)
+    {
+        var categories = await _context.Categories
+            .AsNoTracking()
+            .OrderBy(c => c.SortOrder)
+            .ThenBy(c => c.Name)
+            .Select(c => new StorefrontCategoryDto(
+                c.Id,
+                c.Name,
+                c.ParentId,
+                c.ImageUrl,
+                c.SortOrder,
+                c.Products.Count(p => p.IsActive)))
+            .ToListAsync(ct);
+
+        return Ok(categories);
     }
 
     /// <summary>
@@ -47,3 +74,12 @@ public class CategoriesController : ControllerBase
         return Ok(result);
     }
 }
+
+/// <summary>Vitrinde kullanılan sade kategori görünümü.</summary>
+public record StorefrontCategoryDto(
+    Guid Id,
+    string Name,
+    Guid? ParentId,
+    string? ImageUrl,
+    int SortOrder,
+    int ProductCount);

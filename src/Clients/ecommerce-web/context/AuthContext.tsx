@@ -52,21 +52,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [router]);
 
   useEffect(() => {
-    // Sayfa yenilendiğinde Cookie'de token var mı diye bak
     const token = Cookies.get("token");
     if (token) {
       try {
         const decoded = decodeJwtPayload<DecodedToken>(token);
-        
-        // Token geçerliyse kullanıcıyı set et
-        // NOT: Token expire kontrolü kaldırıldı - kullanıcı açıkça çıkış yapana kadar login kalacak
-        setUser({
-          id: decoded.sub,
-          name: decoded.given_name,
-          email: decoded.email
-        });
-      } catch (error) {
-        // Token parse edilemiyorsa temizle (bozuk token)
+        const nowSec = Math.floor(Date.now() / 1000);
+        if (decoded.exp && decoded.exp < nowSec) {
+          Cookies.remove("token", { path: "/" });
+          setUser(null);
+        } else {
+          setUser({
+            id: decoded.sub,
+            name: decoded.given_name,
+            email: decoded.email,
+          });
+        }
+      } catch {
         Cookies.remove("token", { path: "/" });
         setUser(null);
       }
@@ -75,25 +76,33 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const login = (token: string) => {
-    // 1. Token'ı Cookie'ye kaydet (30 gün sakla, kalıcı oturum için)
-    Cookies.set("token", token, { 
-      expires: 30, // 30 gün
-      path: "/", // Tüm sayfalarda erişilebilir
-      sameSite: "lax", // CSRF koruması için
-      secure: typeof window !== "undefined" && window.location.protocol === "https:" // Sadece HTTPS bağlantıda secure flag aç
+    let expiresDays = 1;
+    try {
+      const decoded = decodeJwtPayload<DecodedToken>(token);
+      if (decoded.exp) {
+        const msLeft = decoded.exp * 1000 - Date.now();
+        expiresDays = Math.max(msLeft / (1000 * 60 * 60 * 24), 1 / 24);
+      }
+    } catch {
+      /* ignore */
+    }
+
+    Cookies.set("token", token, {
+      expires: expiresDays,
+      path: "/",
+      sameSite: "lax",
+      secure: typeof window !== "undefined" && window.location.protocol === "https:",
     });
 
-    // 2. Token'ı çöz ve state'e at
     const decoded = decodeJwtPayload<DecodedToken>(token);
     setUser({
       id: decoded.sub,
       name: decoded.given_name,
-      email: decoded.email
+      email: decoded.email,
     });
 
-    // 3. Anasayfaya yönlendir
     router.push("/");
-    router.refresh(); // Server Component'lerin de haberi olsun
+    router.refresh();
   };
 
   return (

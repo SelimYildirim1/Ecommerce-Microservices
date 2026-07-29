@@ -18,9 +18,8 @@ public class StockReservedConsumer : IConsumer<StockReservedEvent>
     {
         var message = context.Message;
         
-        _logger.LogInformation("--- ÖDEME İŞLEMİ BAŞLADI (Stok Ayrıldı) ---");
-        _logger.LogInformation($"Sipariş ID: {message.OrderId} | Tutar: {message.TotalPrice} TL");
-        _logger.LogInformation($"Kart Sahibi: {message.CardName}");
+        _logger.LogInformation("--- ÖDEME İŞLEMİ BAŞLADI (Stok Ayrıldı, mock) ---");
+        _logger.LogInformation("Sipariş ID: {OrderId} | Tutar: {TotalPrice} TL", message.OrderId, message.TotalPrice);
 
         // Banka Simülasyonu (3 saniye bekleyelim)
         await Task.Delay(3000); 

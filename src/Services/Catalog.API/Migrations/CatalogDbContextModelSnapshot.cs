@@ -23,194 +23,678 @@ namespace Catalog.API.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Catalog.API.Entities.Brand", b =>
-            {
-                b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid");
-                b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
-                b.Property<DateTime?>("UpdatedAt").HasColumnType("timestamp with time zone");
-                b.Property<string>("Name").IsRequired().HasColumnType("text");
-                b.Property<string>("LogoUrl").HasColumnType("text");
-                b.HasKey("Id");
-                b.HasIndex("Name").IsUnique();
-                b.ToTable("Brands");
-            });
+            modelBuilder.Entity("Catalog.API.Entities.Banner", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
 
-            modelBuilder.Entity("Catalog.API.Entities.ProductAttribute", b =>
-            {
-                b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid");
-                b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
-                b.Property<DateTime?>("UpdatedAt").HasColumnType("timestamp with time zone");
-                b.Property<string>("Name").IsRequired().HasColumnType("text");
-                b.Property<string>("Code").IsRequired().HasColumnType("text");
-                b.Property<string>("DataType").IsRequired().HasColumnType("text");
-                b.Property<string>("Options").HasColumnType("text");
-                b.Property<bool>("IsRequired").HasColumnType("boolean");
-                b.Property<bool>("IsVariant").HasColumnType("boolean");
-                b.HasKey("Id");
-                b.HasIndex("Code").IsUnique();
-                b.ToTable("ProductAttributes");
-            });
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
-            modelBuilder.Entity("Catalog.API.Entities.Category", b =>
-            {
-                b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid");
-                b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
-                b.Property<DateTime?>("UpdatedAt").HasColumnType("timestamp with time zone");
-                b.Property<string>("Name").IsRequired().HasColumnType("text");
-                b.Property<Guid?>("ParentId").HasColumnType("uuid");
-                b.HasKey("Id");
-                b.HasIndex("Name");
-                b.HasIndex("ParentId");
-                b.ToTable("Categories");
-            });
+                    b.Property<DateTime?>("EndsAt")
+                        .HasColumnType("timestamp with time zone");
 
-            modelBuilder.Entity("Catalog.API.Entities.CategoryAttribute", b =>
-            {
-                b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid");
-                b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
-                b.Property<DateTime?>("UpdatedAt").HasColumnType("timestamp with time zone");
-                b.Property<Guid>("CategoryId").HasColumnType("uuid");
-                b.Property<Guid>("ProductAttributeId").HasColumnType("uuid");
-                b.Property<int>("SortOrder").HasColumnType("integer");
-                b.Property<bool>("IsFilterable").HasColumnType("boolean");
-                b.HasKey("Id");
-                b.HasIndex("ProductAttributeId");
-                b.HasIndex("CategoryId", "ProductAttributeId").IsUnique();
-                b.ToTable("CategoryAttributes");
-            });
+                    b.Property<string>("ImageUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
-            modelBuilder.Entity("Catalog.API.Entities.Product", b =>
-            {
-                b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid");
-                b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
-                b.Property<DateTime?>("UpdatedAt").HasColumnType("timestamp with time zone");
-                b.Property<string>("Name").IsRequired().HasColumnType("text");
-                b.Property<string>("Description").IsRequired().HasColumnType("text");
-                b.Property<Guid>("CategoryId").HasColumnType("uuid");
-                b.Property<Guid>("BrandId").HasColumnType("uuid");
-                b.Property<bool>("IsActive").HasColumnType("boolean");
-                b.HasKey("Id");
-                b.HasIndex("BrandId");
-                b.HasIndex("CategoryId");
-                b.HasIndex("Name");
-                b.ToTable("Products");
-            });
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
 
-            modelBuilder.Entity("Catalog.API.Entities.ProductVariant", b =>
-            {
-                b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid");
-                b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
-                b.Property<DateTime?>("UpdatedAt").HasColumnType("timestamp with time zone");
-                b.Property<Guid>("ProductId").HasColumnType("uuid");
-                b.Property<string>("Sku").IsRequired().HasColumnType("text");
-                b.Property<decimal>("Price").HasColumnType("numeric");
-                b.Property<int>("StockQuantity").HasColumnType("integer");
-                b.Property<JsonDocument>("Specifics").HasColumnType("jsonb");
-                b.Property<bool>("IsActive").HasColumnType("boolean");
-                b.HasKey("Id");
-                b.HasIndex("ProductId");
-                b.HasIndex("Sku").IsUnique();
-                b.ToTable("ProductVariants");
-            });
+                    b.Property<string>("LinkUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
-            modelBuilder.Entity("Catalog.API.Entities.ProductImage", b =>
-            {
-                b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid");
-                b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
-                b.Property<DateTime?>("UpdatedAt").HasColumnType("timestamp with time zone");
-                b.Property<Guid>("ProductId").HasColumnType("uuid");
-                b.Property<string>("Url").IsRequired().HasColumnType("text");
-                b.Property<bool>("IsPrimary").HasColumnType("boolean");
-                b.Property<int>("SortOrder").HasColumnType("integer");
-                b.HasKey("Id");
-                b.HasIndex("ProductId");
-                b.ToTable("ProductImages");
-            });
+                    b.Property<string>("Placement")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
 
-            // Relationships
-            modelBuilder.Entity("Catalog.API.Entities.Category", b =>
-            {
-                b.HasOne("Catalog.API.Entities.Category", "Parent")
-                    .WithMany("Children")
-                    .HasForeignKey("ParentId")
-                    .OnDelete(DeleteBehavior.Restrict);
-                b.Navigation("Parent");
-            });
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
 
-            modelBuilder.Entity("Catalog.API.Entities.CategoryAttribute", b =>
-            {
-                b.HasOne("Catalog.API.Entities.Category", "Category")
-                    .WithMany("CategoryAttributes")
-                    .HasForeignKey("CategoryId")
-                    .OnDelete(DeleteBehavior.Cascade)
-                    .IsRequired();
-                b.HasOne("Catalog.API.Entities.ProductAttribute", "ProductAttribute")
-                    .WithMany("CategoryAttributes")
-                    .HasForeignKey("ProductAttributeId")
-                    .OnDelete(DeleteBehavior.Cascade)
-                    .IsRequired();
-                b.Navigation("Category");
-                b.Navigation("ProductAttribute");
-            });
+                    b.Property<DateTime?>("StartsAt")
+                        .HasColumnType("timestamp with time zone");
 
-            modelBuilder.Entity("Catalog.API.Entities.Product", b =>
-            {
-                b.HasOne("Catalog.API.Entities.Category", "Category")
-                    .WithMany("Products")
-                    .HasForeignKey("CategoryId")
-                    .OnDelete(DeleteBehavior.Restrict)
-                    .IsRequired();
-                b.HasOne("Catalog.API.Entities.Brand", "Brand")
-                    .WithMany("Products")
-                    .HasForeignKey("BrandId")
-                    .OnDelete(DeleteBehavior.Restrict)
-                    .IsRequired();
-                b.Navigation("Category");
-                b.Navigation("Brand");
-            });
+                    b.Property<string>("Subtitle")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
 
-            modelBuilder.Entity("Catalog.API.Entities.ProductVariant", b =>
-            {
-                b.HasOne("Catalog.API.Entities.Product", "Product")
-                    .WithMany("Variants")
-                    .HasForeignKey("ProductId")
-                    .OnDelete(DeleteBehavior.Cascade)
-                    .IsRequired();
-                b.Navigation("Product");
-            });
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
-            modelBuilder.Entity("Catalog.API.Entities.ProductImage", b =>
-            {
-                b.HasOne("Catalog.API.Entities.Product", "Product")
-                    .WithMany("Images")
-                    .HasForeignKey("ProductId")
-                    .OnDelete(DeleteBehavior.Cascade)
-                    .IsRequired();
-                b.Navigation("Product");
-            });
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Placement", "SortOrder");
+
+                    b.ToTable("Banners");
+                });
 
             modelBuilder.Entity("Catalog.API.Entities.Brand", b =>
-            {
-                b.Navigation("Products");
-            });
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
 
-            modelBuilder.Entity("Catalog.API.Entities.ProductAttribute", b =>
-            {
-                b.Navigation("CategoryAttributes");
-            });
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LogoUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Brands");
+                });
 
             modelBuilder.Entity("Catalog.API.Entities.Category", b =>
-            {
-                b.Navigation("CategoryAttributes");
-                b.Navigation("Children");
-                b.Navigation("Products");
-            });
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ImageUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("ParentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name");
+
+                    b.HasIndex("ParentId");
+
+                    b.ToTable("Categories");
+                });
+
+            modelBuilder.Entity("Catalog.API.Entities.CategoryAttribute", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsFilterable")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("ProductAttributeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductAttributeId");
+
+                    b.HasIndex("CategoryId", "ProductAttributeId")
+                        .IsUnique();
+
+                    b.ToTable("CategoryAttributes");
+                });
+
+            modelBuilder.Entity("Catalog.API.Entities.Favorite", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("UserId", "ProductId")
+                        .IsUnique();
+
+                    b.ToTable("Favorites");
+                });
 
             modelBuilder.Entity("Catalog.API.Entities.Product", b =>
-            {
-                b.Navigation("Images");
-                b.Navigation("Variants");
-            });
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BrandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("MetaDescription")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("MetaTitle")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Slug")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BrandId");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("Name");
+
+                    b.HasIndex("Slug");
+
+                    b.ToTable("Products");
+                });
+
+            modelBuilder.Entity("Catalog.API.Entities.ProductAttribute", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DataType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsVariant")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Options")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("ProductAttributes");
+                });
+
+            modelBuilder.Entity("Catalog.API.Entities.ProductImage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsPrimary")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("ProductImages");
+                });
+
+            modelBuilder.Entity("Catalog.API.Entities.ProductReview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsApproved")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ModeratorNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Rating")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("UserName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("ProductId", "UserId");
+
+                    b.ToTable("ProductReviews");
+                });
+
+            modelBuilder.Entity("Catalog.API.Entities.ProductVariant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<decimal>("Price")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Sku")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<JsonDocument>("Specifics")
+                        .HasColumnType("jsonb");
+
+                    b.Property<int>("StockQuantity")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("Sku")
+                        .IsUnique();
+
+                    b.ToTable("ProductVariants");
+                });
+
+            modelBuilder.Entity("Catalog.API.Entities.SiteSetting", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("Group")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Value")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.ToTable("SiteSettings");
+                });
+
+            modelBuilder.Entity("Catalog.API.Entities.StaticPage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsPublished")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("MetaDescription")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("MetaTitle")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("ShowInFooter")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("StaticPages");
+                });
+
+            modelBuilder.Entity("Catalog.API.Entities.StockMovement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("NewStock")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("PreviousStock")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProductVariantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("ProductVariantId");
+
+                    b.ToTable("StockMovements");
+                });
+
+            modelBuilder.Entity("Catalog.API.Entities.Category", b =>
+                {
+                    b.HasOne("Catalog.API.Entities.Category", "Parent")
+                        .WithMany("Children")
+                        .HasForeignKey("ParentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Parent");
+                });
+
+            modelBuilder.Entity("Catalog.API.Entities.CategoryAttribute", b =>
+                {
+                    b.HasOne("Catalog.API.Entities.Category", "Category")
+                        .WithMany("CategoryAttributes")
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Catalog.API.Entities.ProductAttribute", "ProductAttribute")
+                        .WithMany("CategoryAttributes")
+                        .HasForeignKey("ProductAttributeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Category");
+
+                    b.Navigation("ProductAttribute");
+                });
+
+            modelBuilder.Entity("Catalog.API.Entities.Favorite", b =>
+                {
+                    b.HasOne("Catalog.API.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("Catalog.API.Entities.Product", b =>
+                {
+                    b.HasOne("Catalog.API.Entities.Brand", "Brand")
+                        .WithMany("Products")
+                        .HasForeignKey("BrandId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Catalog.API.Entities.Category", "Category")
+                        .WithMany("Products")
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Brand");
+
+                    b.Navigation("Category");
+                });
+
+            modelBuilder.Entity("Catalog.API.Entities.ProductImage", b =>
+                {
+                    b.HasOne("Catalog.API.Entities.Product", "Product")
+                        .WithMany("Images")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("Catalog.API.Entities.ProductReview", b =>
+                {
+                    b.HasOne("Catalog.API.Entities.Product", "Product")
+                        .WithMany("Reviews")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("Catalog.API.Entities.ProductVariant", b =>
+                {
+                    b.HasOne("Catalog.API.Entities.Product", "Product")
+                        .WithMany("Variants")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("Catalog.API.Entities.StockMovement", b =>
+                {
+                    b.HasOne("Catalog.API.Entities.ProductVariant", "ProductVariant")
+                        .WithMany()
+                        .HasForeignKey("ProductVariantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ProductVariant");
+                });
+
+            modelBuilder.Entity("Catalog.API.Entities.Brand", b =>
+                {
+                    b.Navigation("Products");
+                });
+
+            modelBuilder.Entity("Catalog.API.Entities.Category", b =>
+                {
+                    b.Navigation("CategoryAttributes");
+
+                    b.Navigation("Children");
+
+                    b.Navigation("Products");
+                });
+
+            modelBuilder.Entity("Catalog.API.Entities.Product", b =>
+                {
+                    b.Navigation("Images");
+
+                    b.Navigation("Reviews");
+
+                    b.Navigation("Variants");
+                });
+
+            modelBuilder.Entity("Catalog.API.Entities.ProductAttribute", b =>
+                {
+                    b.Navigation("CategoryAttributes");
+                });
 #pragma warning restore 612, 618
         }
     }

@@ -1,17 +1,49 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/Header";
+import { ChevronRight, ShieldCheck } from "lucide-react";
 import Cookies from "js-cookie";
-import { API_URL } from "@/lib/api";
+import { API_URL, authHeaders } from "@/lib/api";
+
+interface BasketItem {
+  productId: string;
+  productName: string;
+  price: number;
+  quantity: number;
+}
+
+const formatPrice = (value: number) =>
+  new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(value);
 
 export default function CheckoutPage() {
   const { user } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [items, setItems] = useState<BasketItem[]>([]);
+  const [acceptKvkk, setAcceptKvkk] = useState(false);
+  const [acceptMesafeli, setAcceptMesafeli] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+
+    let cancelled = false;
+    fetch(`${API_URL}/basket/${user.id}`, { headers: authHeaders() })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((basket) => {
+        if (!cancelled && Array.isArray(basket?.items)) setItems(basket.items);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   const [formData, setFormData] = useState({
     FirstName: "",
@@ -21,11 +53,6 @@ export default function CheckoutPage() {
     City: "",
     AddressLine: "",
     ZipCode: "",
-    CardName: "",
-    CardNumber: "",
-    Expiration: "",
-    CVV: "",
-    CardTypeId: 1
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -34,6 +61,10 @@ export default function CheckoutPage() {
 
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!acceptKvkk || !acceptMesafeli) {
+      alert("Devam etmek için KVKK ve mesafeli satış onaylarını işaretleyin.");
+      return;
+    }
     setLoading(true);
 
     if (!user) {
@@ -43,6 +74,7 @@ export default function CheckoutPage() {
 
     const token = Cookies.get("token");
 
+    // Kart PAN/CVV toplanmaz — ödeme mock; alanlar geriye dönük uyumluluk için boş gönderilir.
     const checkoutData = {
       UserName: user.id,
       EmailAddress: user.email,
@@ -54,11 +86,11 @@ export default function CheckoutPage() {
       City: formData.City,
       AddressLine: formData.AddressLine,
       ZipCode: formData.ZipCode,
-      CardName: formData.CardName,
-      CardNumber: formData.CardNumber,
-      Expiration: formData.Expiration,
-      CVV: formData.CVV,
-      CardTypeId: 1
+      CardName: "",
+      CardNumber: "",
+      Expiration: "",
+      CVV: "",
+      PaymentMethod: 1,
     };
 
     try {
@@ -80,7 +112,7 @@ export default function CheckoutPage() {
       if (res.ok || res.status === 202 || res.status === 204) {
         window.location.href = "/orders";
       } else {
-        let errorMessage = "Lutfen bilgileri kontrol edin:\n";
+        let errorMessage = "Lütfen bilgileri kontrol edin:\n";
         try {
           const errorData = await res.json();
           if (errorData.errors) {
@@ -97,9 +129,9 @@ export default function CheckoutPage() {
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        alert("Istek zaman asimina ugradi. Lutfen tekrar deneyin.");
+        alert("İstek zaman aşımına uğradı. Lütfen tekrar deneyin.");
       } else {
-        alert("Baglanti hatasi: " + (error.message || "Bilinmeyen hata"));
+        alert("Bağlantı hatası: " + (error.message || "Bilinmeyen hata"));
       }
     } finally {
       setLoading(false);
@@ -110,122 +142,170 @@ export default function CheckoutPage() {
   const labelClass = "block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5";
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main className="bg-white text-gray-900">
       <Header />
 
-      <div className="max-w-[1440px] mx-auto px-4 lg:px-8 py-8">
+      <div className="max-w-[1600px] mx-auto px-6 md:px-12 py-8">
         {/* Breadcrumb */}
-        <nav className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
-          <Link href="/" className="hover:text-foreground transition">Anasayfa</Link>
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3">
-            <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-          </svg>
-          <Link href="/cart" className="hover:text-foreground transition">Sepetim</Link>
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3">
-            <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-          </svg>
-          <span className="text-foreground font-medium">Odeme</span>
+        <nav className="mb-6 flex items-center gap-1.5 text-sm text-gray-500">
+          <Link href="/" className="transition-colors hover:text-gray-900">Anasayfa</Link>
+          <ChevronRight className="h-3.5 w-3.5" />
+          <Link href="/cart" className="transition-colors hover:text-gray-900">Sepetim</Link>
+          <ChevronRight className="h-3.5 w-3.5" />
+          <span className="font-medium text-gray-900">Ödeme</span>
         </nav>
 
-        <h1 className="text-2xl font-bold mb-8">Odeme Bilgileri</h1>
+        <h1 className="font-display mb-8 text-3xl font-bold md:text-4xl">Ödeme Bilgileri</h1>
 
         <form onSubmit={handleCheckout} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column - Forms */}
           <div className="lg:col-span-2 space-y-6">
 
             {/* Personal Info */}
-            <div className="border border-border rounded-xl overflow-hidden">
+            <div className="border border-border rounded-2xl overflow-hidden">
               <div className="bg-muted/30 px-5 py-3 border-b border-border">
-                <h2 className="text-sm font-semibold uppercase tracking-wider">Kisisel Bilgiler</h2>
+                <h2 className="text-sm font-semibold uppercase tracking-wider">Kişisel Bilgiler</h2>
               </div>
               <div className="p-5 grid grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>Ad</label>
-                  <input name="FirstName" placeholder="Adiniz" required onChange={handleChange} className={inputClass} />
+                  <input name="FirstName" placeholder="Adınız" required onChange={handleChange} className={inputClass} />
                 </div>
                 <div>
                   <label className={labelClass}>Soyad</label>
-                  <input name="LastName" placeholder="Soyadiniz" required onChange={handleChange} className={inputClass} />
+                  <input name="LastName" placeholder="Soyadınız" required onChange={handleChange} className={inputClass} />
                 </div>
               </div>
             </div>
 
             {/* Address */}
-            <div className="border border-border rounded-xl overflow-hidden">
+            <div className="border border-border rounded-2xl overflow-hidden">
               <div className="bg-muted/30 px-5 py-3 border-b border-border">
                 <h2 className="text-sm font-semibold uppercase tracking-wider">Teslimat Adresi</h2>
               </div>
               <div className="p-5 grid grid-cols-2 gap-4">
                 <div>
-                  <label className={labelClass}>Ulke</label>
-                  <input name="Country" placeholder="Ulke" required onChange={handleChange} className={inputClass} />
+                  <label className={labelClass}>Ülke</label>
+                  <input name="Country" placeholder="Ülke" required onChange={handleChange} className={inputClass} />
                 </div>
                 <div>
-                  <label className={labelClass}>Sehir</label>
-                  <input name="City" placeholder="Sehir" required onChange={handleChange} className={inputClass} />
+                  <label className={labelClass}>Şehir</label>
+                  <input name="City" placeholder="Şehir" required onChange={handleChange} className={inputClass} />
                 </div>
                 <div>
-                  <label className={labelClass}>Ilce / Bolge</label>
-                  <input name="State" placeholder="Ilce / Bolge" required onChange={handleChange} className={inputClass} />
+                  <label className={labelClass}>İlçe / Bölge</label>
+                  <input name="State" placeholder="İlçe / Bölge" required onChange={handleChange} className={inputClass} />
                 </div>
                 <div>
                   <label className={labelClass}>Posta Kodu</label>
                   <input name="ZipCode" placeholder="Posta Kodu" required onChange={handleChange} className={inputClass} />
                 </div>
                 <div className="col-span-2">
-                  <label className={labelClass}>Acik Adres</label>
+                  <label className={labelClass}>Açık Adres</label>
                   <input name="AddressLine" placeholder="Sokak, No, Daire" required onChange={handleChange} className={inputClass} />
                 </div>
               </div>
             </div>
 
-            {/* Payment */}
-            <div className="border border-border rounded-xl overflow-hidden">
+            {/* Payment (mock — kart verisi toplanmaz) */}
+            <div className="border border-border rounded-2xl overflow-hidden">
               <div className="bg-muted/30 px-5 py-3 border-b border-border">
-                <h2 className="text-sm font-semibold uppercase tracking-wider">Kart Bilgileri</h2>
+                <h2 className="text-sm font-semibold uppercase tracking-wider">Ödeme</h2>
               </div>
-              <div className="p-5 grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className={labelClass}>Kart Uzerindeki Isim</label>
-                  <input name="CardName" placeholder="Kart Uzerindeki Isim" required onChange={handleChange} className={inputClass} />
-                </div>
-                <div className="col-span-2">
-                  <label className={labelClass}>Kart Numarasi</label>
-                  <input name="CardNumber" placeholder="0000 0000 0000 0000" required onChange={handleChange} className={inputClass} />
-                </div>
-                <div>
-                  <label className={labelClass}>Son Kullanma</label>
-                  <input name="Expiration" placeholder="MM/YY" required onChange={handleChange} className={inputClass} />
-                </div>
-                <div>
-                  <label className={labelClass}>CVV</label>
-                  <input name="CVV" placeholder="000" required onChange={handleChange} className={inputClass} />
-                </div>
+              <div className="p-5 space-y-2">
+                <p className="text-sm text-gray-700">
+                  Ödeme şu an simüle edilir. Kart numarası veya CVV toplanmaz ve sunucuya gönderilmez.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Gerçek ödeme sağlayıcısı bağlandığında 3D Secure / hosted form kullanılacaktır.
+                </p>
               </div>
+            </div>
+
+            <div className="space-y-3 rounded-2xl border border-border p-5 text-sm">
+              <label className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={acceptKvkk}
+                  onChange={(e) => setAcceptKvkk(e.target.checked)}
+                  className="mt-1"
+                  required
+                />
+                <span>
+                  <Link href="/pages/kvkk" className="underline" target="_blank">
+                    KVKK aydınlatma metnini
+                  </Link>{" "}
+                  okudum ve kabul ediyorum.
+                </span>
+              </label>
+              <label className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={acceptMesafeli}
+                  onChange={(e) => setAcceptMesafeli(e.target.checked)}
+                  className="mt-1"
+                  required
+                />
+                <span>
+                  <Link href="/pages/mesafeli-satis-sozlesmesi" className="underline" target="_blank">
+                    Mesafeli satış sözleşmesini
+                  </Link>{" "}
+                  okudum ve kabul ediyorum.
+                </span>
+              </label>
             </div>
           </div>
 
           {/* Right Column - Summary */}
           <div className="lg:col-span-1">
-            <div className="border border-border rounded-xl overflow-hidden sticky top-24">
+            <div className="border border-border rounded-2xl overflow-hidden sticky top-24">
               <div className="bg-muted/30 px-5 py-3 border-b border-border">
-                <h2 className="text-sm font-semibold uppercase tracking-wider">Siparis Ozeti</h2>
+                <h2 className="text-sm font-semibold uppercase tracking-wider">Sipariş Özeti</h2>
               </div>
               <div className="p-5 space-y-4">
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-muted-foreground">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
-                  </svg>
+                {items.length > 0 && (
+                  <>
+                    <ul className="space-y-3">
+                      {items.map((item) => (
+                        <li key={`${item.productId}-${item.productName}`} className="flex gap-3 text-sm">
+                          <span className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-medium">
+                            {item.quantity}
+                          </span>
+                          <span className="line-clamp-2 flex-1 text-gray-600">{item.productName}</span>
+                          <span className="font-medium">{formatPrice(item.price * item.quantity)}</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    <div className="space-y-2 border-t border-border pt-4 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Ara Toplam</span>
+                        <span className="font-medium">{formatPrice(subtotal)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Kargo</span>
+                        <span className="font-medium text-success">Ücretsiz</span>
+                      </div>
+                      <div className="flex items-center justify-between border-t border-border pt-3">
+                        <span className="font-semibold">Toplam</span>
+                        <span className="text-xl font-bold">{formatPrice(subtotal)}</span>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/50">
+                  <ShieldCheck className="w-5 h-5 text-muted-foreground" strokeWidth={1.5} />
                   <div>
-                    <p className="text-xs font-medium">Guvenli Odeme</p>
-                    <p className="text-[10px] text-muted-foreground">256-bit SSL ile korunmaktadir</p>
+                    <p className="text-xs font-medium">Ödeme simülasyonu</p>
+                    <p className="text-[10px] text-muted-foreground">Kart verisi işlenmez; sipariş mock ödeme ile ilerler</p>
                   </div>
                 </div>
 
                 <button
                   type="submit"
-                  disabled={loading}
-                  className="w-full py-3 bg-foreground text-white rounded-lg font-medium hover:bg-foreground/85 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                  disabled={loading || items.length === 0 || !acceptKvkk || !acceptMesafeli}
+                  className="w-full py-3 bg-foreground text-white rounded-lg font-medium hover:bg-gray-800 transition disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {loading ? (
                     <>
@@ -233,21 +313,22 @@ export default function CheckoutPage() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                       </svg>
-                      Siparis Olusturuluyor...
+                      Sipariş oluşturuluyor...
                     </>
                   ) : (
-                    "Odemeyi Tamamla"
+                    "Ödemeyi simüle et"
                   )}
                 </button>
 
                 <p className="text-[10px] text-muted-foreground text-center leading-relaxed">
-                  Odemeyi Tamamla butonuna basarak, kullanim kosullarini ve gizlilik politikasini kabul etmis olursunuz.
+                  Bu buton siparişi mock ödeme ile oluşturur. Kart bilgisi istenmez.
                 </p>
               </div>
             </div>
           </div>
         </form>
       </div>
+
     </main>
   );
 }

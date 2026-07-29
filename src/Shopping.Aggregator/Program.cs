@@ -31,6 +31,7 @@ builder.Services.AddOpenTelemetry()
 
 // --- CONTROLLERS ---
 builder.Services.AddControllers();
+builder.Services.AddHttpContextAccessor();
 
 // --- CORS ---
 builder.Services.AddCors(options =>
@@ -63,6 +64,7 @@ app.UseCors("CorsPolicy");
 app.UseHttpMetrics();
 app.UseAuthorization();
 app.MapControllers();
+app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "Shopping.Aggregator" }));
 app.MapMetrics(); // /metrics → Prometheus
 
 app.Run();

@@ -11,16 +11,29 @@ public class OrderDto
     public string OrderStatus { get; set; } = default!;
     public DateTime OrderDate { get; set; }
     public string? Description { get; set; }
+
+    // Alici ve kirilim bilgileri (Order.API yeni alanlar; eski siparislerde bos/0)
+    public string? FirstName { get; set; }
+    public string? LastName { get; set; }
+    public string? EmailAddress { get; set; }
+    public string? AddressLine { get; set; }
+    public string? City { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public string? CouponCode { get; set; }
+    public decimal ShippingCost { get; set; }
+
     public List<OrderItemDto> OrderItems { get; set; } = new();
 }
 
 public class OrderItemDto
 {
-    public int ProductId { get; set; }
+    public Guid Id { get; set; }
+    public Guid ProductId { get; set; }
     public string ProductName { get; set; } = default!;
     public string? PictureUrl { get; set; }
     public decimal UnitPrice { get; set; }
     public int Units { get; set; }
+    public string? SelectedAttributes { get; set; }
 }
 
 // Catalog API'den gelen modeller
@@ -40,9 +53,23 @@ public class ProductDetailDto
     public string Description { get; set; } = default!;
     public string CategoryName { get; set; } = default!;
     public string BrandName { get; set; } = default!;
+    public Guid? CategoryId { get; set; }
+    public Guid? BrandId { get; set; }
     public string? PrimaryImageUrl { get; set; }
     public bool IsActive { get; set; }
+    public string? Slug { get; set; }
+    public string? MetaTitle { get; set; }
+    public string? MetaDescription { get; set; }
     public List<VariantDto> Variants { get; set; } = new();
+    public List<ProductImageDto> Images { get; set; } = new();
+}
+
+public class ProductImageDto
+{
+    public Guid Id { get; set; }
+    public string Url { get; set; } = default!;
+    public bool IsPrimary { get; set; }
+    public int SortOrder { get; set; }
 }
 
 public class VariantDto
@@ -113,4 +140,12 @@ public class UserDto
     public string Id { get; set; } = default!;
     public string UserName { get; set; } = default!;
     public string Email { get; set; } = default!;
+
+    public string? FirstName { get; set; }
+    public string? LastName { get; set; }
+    public string? PhoneNumber { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public bool IsBlocked { get; set; }
+    public List<string> Roles { get; set; } = new();
+    public int AddressCount { get; set; }
 }
