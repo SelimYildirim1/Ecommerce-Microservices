@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { getNotifications } from "@/lib/notifications";
 
 /** API hata gövdesini kullanıcıya okunabilir Türkçe metne çevirir. */
 export function parseApiError(
@@ -50,9 +50,17 @@ export async function readApiError(
   return parseApiError(raw, fallback);
 }
 
+function clientNotify(
+  type: "success" | "error" | "info" | "warning",
+  message: string,
+) {
+  if (typeof window === "undefined") return;
+  getNotifications()[type](message);
+}
+
 export const notify = {
-  success: (message: string) => toast.success(message),
-  error: (message: string) => toast.error(message),
-  info: (message: string) => toast.message(message),
-  warning: (message: string) => toast.warning(message),
+  success: (message: string) => clientNotify("success", message),
+  error: (message: string) => clientNotify("error", message),
+  info: (message: string) => clientNotify("info", message),
+  warning: (message: string) => clientNotify("warning", message),
 };

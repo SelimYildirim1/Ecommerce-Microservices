@@ -1,20 +1,14 @@
 "use client";
 
-import { Toaster } from "sonner";
+import { useEffect } from "react";
+import { getNotifications } from "@/lib/notifications";
+import "@/app/notifications.css";
 
-/** Global toast alanı — layout'tan bir kez yüklenir. */
+/** Custom sağ-üst toast sistemini başlatır (alert yerine). */
 export default function AppToaster() {
-  return (
-    <Toaster
-      position="top-center"
-      richColors
-      closeButton
-      duration={4500}
-      toastOptions={{
-        classNames: {
-          toast: "font-sans text-sm",
-        },
-      }}
-    />
-  );
+  useEffect(() => {
+    getNotifications().init();
+  }, []);
+
+  return null;
 }
