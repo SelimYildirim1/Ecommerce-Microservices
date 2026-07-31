@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { API_URL } from "@/lib/api";
+import { notify, parseApiError } from "@/lib/feedback";
 
 function ResetForm() {
   const params = useSearchParams();
@@ -12,12 +13,10 @@ function ResetForm() {
   const [token] = useState(params.get("token") ?? "");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError("");
     try {
       const res = await fetch(`${API_URL}/auth/reset-password`, {
         method: "POST",
@@ -26,12 +25,13 @@ function ResetForm() {
       });
       if (!res.ok) {
         const text = await res.text();
-        setError(text || "Şifre sıfırlanamadı.");
+        notify.error(parseApiError(text, "Şifre sıfırlanamadı. Bağlantıyı kontrol edin."));
         return;
       }
+      notify.success("Şifreniz güncellendi. Giriş yapabilirsiniz.");
       router.push("/login");
     } catch {
-      setError("Bağlantı hatası.");
+      notify.error("Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin.");
     } finally {
       setLoading(false);
     }
@@ -56,7 +56,6 @@ function ResetForm() {
         placeholder="Yeni şifre"
         className="w-full h-11 px-4 rounded-lg border border-border bg-white text-sm"
       />
-      {error && <p className="text-sm text-red-600">{error}</p>}
       <button
         type="submit"
         disabled={loading || !token}

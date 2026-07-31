@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { API_URL } from "@/lib/api";
+import { notify } from "@/lib/feedback";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -19,8 +20,14 @@ export default function ForgotPasswordPage() {
         body: JSON.stringify({ email }),
       });
       setDone(true);
+      notify.success(
+        "Eğer bu e-posta kayıtlıysa sıfırlama bağlantısı gönderildi. Gelen kutunuzu kontrol edin.",
+      );
     } catch {
       setDone(true);
+      notify.success(
+        "Eğer bu e-posta kayıtlıysa sıfırlama bağlantısı gönderildi. Gelen kutunuzu kontrol edin.",
+      );
     } finally {
       setLoading(false);
     }

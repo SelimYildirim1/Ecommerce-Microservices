@@ -7,6 +7,7 @@ import Link from "next/link";
 import { ImageOff, ShoppingBag } from "lucide-react";
 import { API_URL, authHeaders } from "@/lib/api";
 import { resolveMediaUrl } from "@/lib/catalog";
+import { notify, parseApiError } from "@/lib/feedback";
 
 interface CartItem {
   quantity: number;
@@ -63,10 +64,11 @@ export default function CartClient({
         router.refresh();
       } else {
         const errorText = await res.text();
-        console.error("Sepet guncellenemedi:", errorText);
+        notify.error(parseApiError(errorText, "Sepet güncellenemedi."));
       }
     } catch (error) {
       console.error("Sepet guncellenemedi", error);
+      notify.error("Sunucuya bağlanılamadı. Sepet güncellenemedi.");
     } finally {
       setLoading(false);
     }

@@ -5,6 +5,7 @@ import "./globals.css";
 import FooterSlot from "@/components/FooterSlot";
 import SiteFooter from "@/components/SiteFooter";
 import CookieBanner from "@/components/CookieBanner";
+import AppToaster from "@/components/AppToaster";
 import { AuthProvider } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
 import { FavoritesProvider } from "@/context/FavoritesContext";
@@ -47,6 +48,7 @@ export default function RootLayout({
                 </Suspense>
               </FooterSlot>
               <CookieBanner />
+              <AppToaster />
             </FavoritesProvider>
           </CartProvider>
         </AuthProvider>

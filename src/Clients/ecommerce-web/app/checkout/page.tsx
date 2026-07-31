@@ -8,6 +8,7 @@ import Header from "@/components/Header";
 import { ChevronRight, ShieldCheck } from "lucide-react";
 import Cookies from "js-cookie";
 import { API_URL, authHeaders } from "@/lib/api";
+import { notify, parseApiError } from "@/lib/feedback";
 
 interface BasketItem {
   productId: string;
@@ -62,7 +63,7 @@ export default function CheckoutPage() {
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!acceptKvkk || !acceptMesafeli) {
-      alert("Devam etmek için KVKK ve mesafeli satış onaylarını işaretleyin.");
+      notify.error("Devam etmek için KVKK ve mesafeli satış onaylarını işaretleyin.");
       return;
     }
     setLoading(true);
@@ -110,28 +111,19 @@ export default function CheckoutPage() {
       clearTimeout(timeoutId);
 
       if (res.ok || res.status === 202 || res.status === 204) {
+        notify.success("Siparişiniz alındı. Ödeme simülasyonu başlatıldı.");
         window.location.href = "/orders";
       } else {
-        let errorMessage = "Lütfen bilgileri kontrol edin:\n";
-        try {
-          const errorData = await res.json();
-          if (errorData.errors) {
-            Object.keys(errorData.errors).forEach(key => {
-              errorMessage += `- ${errorData.errors[key]}\n`;
-            });
-          } else {
-            errorMessage += errorData.title || errorData.message || "Bilinmeyen hata";
-          }
-        } catch {
-          errorMessage += `HTTP ${res.status}: ${res.statusText}`;
-        }
-        alert(errorMessage);
+        const raw = await res.text().catch(() => "");
+        notify.error(
+          parseApiError(raw, "Sipariş tamamlanamadı. Bilgileri kontrol edip tekrar deneyin."),
+        );
       }
     } catch (error: any) {
-      if (error.name === 'AbortError') {
-        alert("İstek zaman aşımına uğradı. Lütfen tekrar deneyin.");
+      if (error.name === "AbortError") {
+        notify.error("İstek zaman aşımına uğradı. Lütfen tekrar deneyin.");
       } else {
-        alert("Bağlantı hatası: " + (error.message || "Bilinmeyen hata"));
+        notify.error("Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin.");
       }
     } finally {
       setLoading(false);

@@ -8,6 +8,7 @@ import AddressBook from "@/components/AddressBook";
 import { Card, Field, INPUT } from "@/components/FormPrimitives";
 import { useAuth } from "@/context/AuthContext";
 import * as api from "@/lib/client-api";
+import { notify } from "@/lib/feedback";
 
 type Tab = "profile" | "addresses" | "password";
 
@@ -85,8 +86,6 @@ function ProfileForm() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -101,7 +100,7 @@ function ProfileForm() {
         createdAt: profile.createdAt,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Profil yüklenemedi.");
+      notify.error(err instanceof Error ? err.message : "Profil yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -114,8 +113,6 @@ function ProfileForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    setNotice(null);
-    setError(null);
 
     try {
       await api.updateProfile({
@@ -123,9 +120,9 @@ function ProfileForm() {
         lastName: form.lastName,
         phoneNumber: form.phoneNumber,
       });
-      setNotice("Profil bilgileriniz güncellendi.");
+      notify.success("Profil bilgileriniz güncellendi.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Güncelleme başarısız.");
+      notify.error(err instanceof Error ? err.message : "Güncelleme başarısız.");
     } finally {
       setSaving(false);
     }
@@ -176,9 +173,6 @@ function ProfileForm() {
           </p>
         )}
 
-        {error && <p className="text-sm text-danger">{error}</p>}
-        {notice && <p className="text-sm text-success">{notice}</p>}
-
         <button
           type="submit"
           disabled={saving}
@@ -196,16 +190,12 @@ function PasswordForm() {
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setNotice(null);
-    setError(null);
 
     if (next !== confirm) {
-      setError("Yeni şifreler eşleşmiyor.");
+      notify.error("Yeni şifreler eşleşmiyor.");
       return;
     }
 
@@ -215,9 +205,9 @@ function PasswordForm() {
       setCurrent("");
       setNext("");
       setConfirm("");
-      setNotice("Şifreniz güncellendi.");
+      notify.success("Şifreniz güncellendi.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Şifre değiştirilemedi.");
+      notify.error(err instanceof Error ? err.message : "Şifre değiştirilemedi.");
     } finally {
       setSaving(false);
     }
@@ -255,9 +245,6 @@ function PasswordForm() {
             className={INPUT}
           />
         </Field>
-
-        {error && <p className="text-sm text-danger">{error}</p>}
-        {notice && <p className="text-sm text-success">{notice}</p>}
 
         <button
           type="submit"

@@ -269,11 +269,12 @@ services:
       - NODE_ENV=development
       # Hot Reload'ın (Anlık güncelleme) Mac'te düzgün çalışması için:
       - WATCHPACK_POLLING=true
-      # API Gateway adresi - Tarayıcı erişimi için localhost kullanılır
-      # (NEXT_PUBLIC_ değişkenleri client-side'da çalışır, Docker hostname çözülemez)
-      - NEXT_PUBLIC_API_GATEWAY_URL=http://localhost:8001
-      # SSR fetch'ler container içinden gateway'e gider (localhost:8001 burada çalışmaz)
-      - INTERNAL_API_URL=http://api-gateway:8080
+      # Tarayıcıdan API/görsel URL'i (VPS'te .env ile IP veya domain ver)
+      # Örn: NEXT_PUBLIC_API_GATEWAY_URL=http://212.108.107.48:8001
+      - NEXT_PUBLIC_API_GATEWAY_URL=${NEXT_PUBLIC_API_GATEWAY_URL:-http://localhost:8001}
+      - NEXT_PUBLIC_SIGNALR_URL=${NEXT_PUBLIC_SIGNALR_URL:-http://localhost:5059}
+      # SSR fetch'ler container içinden gateway'e gider
+      - INTERNAL_API_URL=${INTERNAL_API_URL:-http://api-gateway:8080}
     ports:
       - "3000:3000"
     volumes:

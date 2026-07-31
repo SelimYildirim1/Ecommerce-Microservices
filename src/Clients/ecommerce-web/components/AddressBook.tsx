@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Card, Field, INPUT } from "./FormPrimitives";
 import * as api from "@/lib/client-api";
 import type { Address, SaveAddressPayload } from "@/lib/client-api";
+import { notify } from "@/lib/feedback";
 
 const EMPTY_FORM: SaveAddressPayload = {
   addressTitle: "",
@@ -25,15 +26,13 @@ export default function AddressBook() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<SaveAddressPayload>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       setAddresses(await api.getAddresses());
-      setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Adresler yüklenemedi.");
+      notify.error(err instanceof Error ? err.message : "Adresler yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -59,7 +58,6 @@ export default function AddressBook() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    setError(null);
 
     try {
       if (editing) await api.updateAddress(editing.id, form);
@@ -68,8 +66,9 @@ export default function AddressBook() {
       setShowForm(false);
       setEditing(null);
       await load();
+      notify.success(editing ? "Adres güncellendi." : "Adres eklendi.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Adres kaydedilemedi.");
+      notify.error(err instanceof Error ? err.message : "Adres kaydedilemedi.");
     } finally {
       setSaving(false);
     }
@@ -78,13 +77,23 @@ export default function AddressBook() {
   const remove = async (id: number) => {
     if (!confirm("Bu adresi silmek istediğinize emin misiniz?")) return;
 
-    await api.deleteAddress(id).catch(() => undefined);
-    await load();
+    try {
+      await api.deleteAddress(id);
+      await load();
+      notify.success("Adres silindi.");
+    } catch {
+      notify.error("Adres silinemedi.");
+    }
   };
 
   const makeDefault = async (id: number) => {
-    await api.setDefaultAddress(id).catch(() => undefined);
-    await load();
+    try {
+      await api.setDefaultAddress(id);
+      await load();
+      notify.success("Varsayılan adres güncellendi.");
+    } catch {
+      notify.error("Varsayılan adres ayarlanamadı.");
+    }
   };
 
   return (
@@ -101,8 +110,6 @@ export default function AddressBook() {
         )
       }
     >
-      {error && <p className="text-sm text-danger mb-4">{error}</p>}
-
       {showForm && (
         <form onSubmit={submit} className="border border-border rounded-2xl p-4 mb-6 space-y-4">
           <h3 className="text-sm font-semibold">

@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Check, ChevronRight, ImageOff, Info, Package, X } from "lucide-react";
+import { ChevronRight, ImageOff, Package } from "lucide-react";
 import Header from "@/components/Header";
 import Cookies from "js-cookie";
 import * as signalR from "@microsoft/signalr";
 import { API_URL, SIGNALR_URL } from "@/lib/api";
 import { resolveMediaUrl } from "@/lib/catalog";
+import { notify } from "@/lib/feedback";
 
 interface OrderItem {
   productId: string;
@@ -55,17 +56,6 @@ export default function OrdersPage() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingData, setLoadingData] = useState(true);
-  const [toast, setToast] = useState<{
-    message: string;
-    type: "success" | "info" | "error";
-  } | null>(null);
-
-  // Toast otomatik kapanma
-  useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(() => setToast(null), 5000);
-    return () => clearTimeout(timer);
-  }, [toast]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -89,9 +79,12 @@ export default function OrdersPage() {
         if (res.ok) {
           const data = await res.json();
           setOrders(data);
+        } else {
+          notify.error("Siparişler yüklenemedi.");
         }
       } catch (error) {
         console.error("Bağlantı hatası:", error);
+        notify.error("Sunucuya bağlanılamadı. Siparişler yüklenemedi.");
       } finally {
         setLoadingData(false);
       }
@@ -118,7 +111,6 @@ export default function OrdersPage() {
       .configureLogging(signalR.LogLevel.Information)
       .build();
 
-    // Backend'den gelen OrderStatusUpdated event'ini dinle
     connection.on(
       "OrderStatusUpdated",
       (payload: { orderId: string; status: string; updatedAt?: string }) => {
@@ -128,13 +120,11 @@ export default function OrdersPage() {
           )
         );
 
-        setToast({
-          message:
-            payload.status === "Paid"
-              ? "Ödemeniz onaylandı, sipariş durumu güncellendi."
-              : `Sipariş durumu güncellendi: ${payload.status}`,
-          type: payload.status === "Paid" ? "success" : "info",
-        });
+        if (payload.status === "Paid") {
+          notify.success("Ödemeniz onaylandı, sipariş durumu güncellendi.");
+        } else {
+          notify.info(`Sipariş durumu güncellendi: ${payload.status}`);
+        }
       }
     );
 
@@ -173,45 +163,6 @@ export default function OrdersPage() {
   return (
     <main className="bg-white text-foreground">
       <Header />
-
-      {/* Canlı sipariş durumu toast bildirimi */}
-      {toast && (
-        <div className="fixed top-20 right-4 z-50">
-          <div
-            className={`max-w-sm rounded-2xl shadow-lg border px-4 py-3 text-sm flex items-start gap-3 ${
-              toast.type === "success"
-                ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                : toast.type === "error"
-                ? "bg-red-50 border-red-200 text-red-800"
-                : "bg-slate-50 border-slate-200 text-slate-800"
-            }`}
-          >
-            <div className="mt-0.5">
-              {toast.type === "success" ? (
-                <Check className="w-5 h-5" />
-              ) : toast.type === "error" ? (
-                <X className="w-5 h-5" />
-              ) : (
-                <Info className="w-5 h-5" />
-              )}
-            </div>
-            <div className="flex-1">
-              <p className="font-medium">
-                {toast.type === "success"
-                  ? "Siparişiniz güncellendi"
-                  : "Sipariş durumu güncellendi"}
-              </p>
-              <p className="text-xs mt-1 opacity-90">{toast.message}</p>
-            </div>
-            <button
-              onClick={() => setToast(null)}
-              className="ml-2 text-xs opacity-70 hover:opacity-100"
-            >
-              Kapat
-            </button>
-          </div>
-        </div>
-      )}
 
       <div className="max-w-[1600px] mx-auto px-6 md:px-12 py-8">
         {/* Breadcrumb */}

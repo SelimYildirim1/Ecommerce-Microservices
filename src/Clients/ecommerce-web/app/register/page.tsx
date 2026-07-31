@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { API_URL } from "@/lib/api";
+import { notify, parseApiError } from "@/lib/feedback";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -15,7 +16,7 @@ export default function RegisterPage() {
     lastName: "",
     email: "",
     password: "",
-    confirmPassword: ""
+    confirmPassword: "",
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -26,7 +27,7 @@ export default function RegisterPage() {
     e.preventDefault();
 
     if (formData.password !== formData.confirmPassword) {
-      alert("Şifreler eşleşmiyor!");
+      notify.error("Şifreler eşleşmiyor. Lütfen kontrol edin.");
       return;
     }
 
@@ -41,33 +42,29 @@ export default function RegisterPage() {
           firstName: formData.firstName,
           lastName: formData.lastName,
           email: formData.email,
-          password: formData.password
+          password: formData.password,
         }),
       });
 
       if (res.ok) {
         const data = await res.json();
         if (data.requiresEmailConfirmation) {
-          alert(
+          notify.success(
             data.message ||
-              "Kayıt başarılı. Giriş yapmadan önce e-posta adresinizi doğrulayın."
+              "Kayıt başarılı. Giriş yapmadan önce e-posta adresinizi doğrulayın.",
           );
           router.push("/login");
           return;
         }
-        alert("Kayıt başarılı! Giriş yapabilirsiniz.");
+        notify.success("Kayıt başarılı! Şimdi giriş yapabilirsiniz.");
         router.push("/login");
       } else {
-        const data = await res.json().catch(() => ({}));
-        const errors = data?.errors;
-        const message = errors
-          ? Object.entries(errors).flatMap(([, v]) => (Array.isArray(v) ? v : [v])).join("\n")
-          : data?.title || data?.detail || "Kayıt başarısız.";
-        alert("Kayıt başarısız:\n" + message);
+        const raw = await res.text().catch(() => "");
+        notify.error(parseApiError(raw, "Kayıt tamamlanamadı. Bilgileri kontrol edin."));
       }
     } catch (error) {
       console.error(error);
-      alert("Bağlantı hatası!");
+      notify.error("Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin.");
     } finally {
       setLoading(false);
     }

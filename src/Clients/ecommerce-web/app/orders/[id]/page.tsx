@@ -9,6 +9,7 @@ import Header from "@/components/Header";
 import Cookies from "js-cookie";
 import { API_URL } from "@/lib/api";
 import { resolveMediaUrl } from "@/lib/catalog";
+import { notify, parseApiError } from "@/lib/feedback";
 
 interface OrderItem {
   productId: string;
@@ -82,11 +83,13 @@ export default function OrderDetailPage() {
       });
       if (res.ok) {
         setOrder({ ...order, orderStatus: "Cancelled" });
+        notify.success("Sipariş iptal edildi.");
       } else {
-        alert(await res.text());
+        const raw = await res.text().catch(() => "");
+        notify.error(parseApiError(raw, "Sipariş iptal edilemedi."));
       }
     } catch {
-      alert("İptal başarısız.");
+      notify.error("İptal işlemi başarısız. Lütfen tekrar deneyin.");
     } finally {
       setActionLoading(false);
     }
@@ -110,12 +113,13 @@ export default function OrderDetailPage() {
         }),
       });
       if (res.ok) {
-        alert("İade talebiniz oluşturuldu.");
+        notify.success("İade talebiniz oluşturuldu. En kısa sürede incelenecek.");
       } else {
-        alert(await res.text());
+        const raw = await res.text().catch(() => "");
+        notify.error(parseApiError(raw, "İade talebi gönderilemedi."));
       }
     } catch {
-      alert("İade talebi gönderilemedi.");
+      notify.error("İade talebi gönderilemedi. Lütfen tekrar deneyin.");
     } finally {
       setActionLoading(false);
     }

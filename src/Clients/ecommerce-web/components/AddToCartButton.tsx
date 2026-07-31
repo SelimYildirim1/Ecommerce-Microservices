@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import { useRouter } from "next/navigation";
 import { API_URL, authHeaders } from "@/lib/api";
+import { notify, parseApiError } from "@/lib/feedback";
 
 interface ProductProps {
   id: string;
@@ -105,14 +106,15 @@ export default function AddToCartButton({
         setAdded(true);
         await refreshCartCount();
         onAdded?.();
+        notify.success("Ürün sepete eklendi.");
         setTimeout(() => setAdded(false), 2000);
       } else {
-        alert("Bir hata oluştu!");
-        console.error(await res.text());
+        const raw = await res.text().catch(() => "");
+        notify.error(parseApiError(raw, "Ürün sepete eklenemedi. Lütfen tekrar deneyin."));
       }
     } catch (error) {
       console.error("Bağlantı hatası:", error);
-      alert("Bağlantı hatası!");
+      notify.error("Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin.");
     } finally {
       setLoading(false);
     }

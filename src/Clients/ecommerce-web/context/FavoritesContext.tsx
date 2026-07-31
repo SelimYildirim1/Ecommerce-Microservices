@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useAuth } from "./AuthContext";
 import * as api from "@/lib/client-api";
+import { notify } from "@/lib/feedback";
 
 interface FavoritesContextType {
   favoriteIds: Set<string>;
@@ -70,9 +71,13 @@ export const FavoritesProvider = ({ children }: { children: React.ReactNode }) =
 
       try {
         const result = await api.toggleFavorite(user.id, productId);
+        notify.success(
+          result.isFavorite ? "Favorilere eklendi." : "Favorilerden çıkarıldı.",
+        );
         return result.isFavorite;
       } catch {
         setFavoriteIds(previous);
+        notify.error("Favori güncellenemedi. Lütfen tekrar deneyin.");
         return previous.has(productId);
       }
     },

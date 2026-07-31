@@ -6,6 +6,7 @@ import StarRating from "./StarRating";
 import { useAuth } from "@/context/AuthContext";
 import * as api from "@/lib/client-api";
 import type { Review, ReviewSummary } from "@/lib/catalog";
+import { notify } from "@/lib/feedback";
 
 export default function ProductReviews({ productId }: { productId: string }) {
   const { user } = useAuth();
@@ -18,8 +19,6 @@ export default function ProductReviews({ productId }: { productId: string }) {
   const [title, setTitle] = useState("");
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -47,8 +46,6 @@ export default function ProductReviews({ productId }: { productId: string }) {
     if (!user) return;
 
     setSubmitting(true);
-    setError(null);
-    setNotice(null);
 
     try {
       await api.createReview(productId, {
@@ -62,10 +59,10 @@ export default function ProductReviews({ productId }: { productId: string }) {
       setTitle("");
       setComment("");
       setRating(5);
-      setNotice("Yorumunuz alındı. Onaylandıktan sonra yayınlanacak.");
+      notify.success("Yorumunuz alındı. Onaylandıktan sonra yayınlanacak.");
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Yorum gönderilemedi.");
+      notify.error(err instanceof Error ? err.message : "Yorum gönderilemedi.");
     } finally {
       setSubmitting(false);
     }
@@ -157,9 +154,6 @@ export default function ProductReviews({ productId }: { productId: string }) {
                   maxLength={2000}
                   className="w-full px-3 py-2 rounded-md border border-border text-sm focus:outline-none focus:border-foreground resize-none"
                 />
-
-                {error && <p className="text-xs text-danger">{error}</p>}
-                {notice && <p className="text-xs text-success">{notice}</p>}
 
                 <button
                   type="submit"

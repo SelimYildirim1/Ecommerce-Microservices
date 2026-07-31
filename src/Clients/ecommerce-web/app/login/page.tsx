@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { API_URL } from "@/lib/api";
+import { notify, parseApiError } from "@/lib/feedback";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -25,13 +26,16 @@ export default function LoginPage() {
       if (res.ok) {
         const data = await res.json();
         login(data.token);
+        notify.success("Giriş başarılı. Hoş geldiniz!");
       } else {
         const text = await res.text();
-        alert(text || "Giriş başarısız! Bilgileri kontrol edin.");
+        notify.error(
+          parseApiError(text, "Giriş başarısız. E-posta veya şifreyi kontrol edin."),
+        );
       }
     } catch (error) {
       console.error(error);
-      alert("Bağlantı hatası!");
+      notify.error("Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin.");
     } finally {
       setLoading(false);
     }

@@ -2,6 +2,7 @@
 
 import Cookies from "js-cookie";
 import { API_URL } from "./api";
+import { parseApiError } from "./feedback";
 import type {
   Favorite,
   PagedResult,
@@ -26,7 +27,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || `İstek başarısız (${res.status})`);
+    throw new Error(parseApiError(text, `İstek başarısız (${res.status})`));
   }
 
   if (res.status === 204) return undefined as T;
