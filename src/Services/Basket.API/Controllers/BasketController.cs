@@ -219,7 +219,100 @@ public class BasketController : ControllerBase
         return Ok();
     }
 
-    // CHECKOUT İŞLEMİ (Senin yazdığın doğru kod korundu ✅)
+    /// <summary>
+    /// Misafir sepetini giris yapan kullanicinin sepetine birlestirir.
+    /// Cagiran hedef sepetin sahibi olmalidir; fromUserName genelde guest-* olur.
+    /// </summary>
+    [HttpPost("merge")]
+    public async Task<ActionResult<ShoppingCart>> MergeBasket([FromBody] MergeBasketRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.FromUserName) ||
+            string.IsNullOrWhiteSpace(request.ToUserName))
+            return BadRequest("fromUserName ve toUserName zorunludur.");
+
+        if (!CallerIdentity.CanAccessBasket(User, request.ToUserName))
+            return Forbid();
+
+        // Misafir sepetini yalnizca hedef kullanici birlestirebilir; admin herkese bakabilir
+        if (!CallerIdentity.IsAdmin(User) &&
+            !request.FromUserName.StartsWith("guest-", StringComparison.OrdinalIgnoreCase))
+            return BadRequest("Yalnızca misafir sepeti birleştirilebilir.");
+
+        if (string.Equals(request.FromUserName, request.ToUserName, StringComparison.Ordinal))
+        {
+            var same = await _repository.GetBasket(request.ToUserName)
+                        ?? new ShoppingCart(request.ToUserName);
+            return Ok(same);
+        }
+
+        var from = await _repository.GetBasket(request.FromUserName)
+                   ?? new ShoppingCart(request.FromUserName);
+        var to = await _repository.GetBasket(request.ToUserName)
+                 ?? new ShoppingCart(request.ToUserName);
+
+        foreach (var item in from.Items)
+        {
+            var existing = to.Items.FirstOrDefault(i =>
+                i.ProductId == item.ProductId &&
+                string.Equals(i.Color, item.Color, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(i.VariantId, item.VariantId, StringComparison.OrdinalIgnoreCase));
+
+            if (existing is not null)
+                existing.Quantity += item.Quantity;
+            else
+                to.Items.Add(item);
+        }
+
+        var saved = await _repository.UpdateBasket(to);
+        await _repository.DeleteBasket(request.FromUserName);
+        return Ok(saved);
+    }
+
+    [HttpPost("{userName}/save-for-later/{productId}")]
+    public async Task<ActionResult<ShoppingCart>> SaveForLater(string userName, string productId, [FromQuery] string? variantId)
+    {
+        if (!CallerIdentity.CanAccessBasket(User, userName))
+            return Forbid();
+
+        var basket = await _repository.GetBasket(userName) ?? new ShoppingCart(userName);
+
+        var item = basket.Items.FirstOrDefault(i =>
+            i.ProductId == productId &&
+            (variantId == null || string.Equals(i.VariantId, variantId, StringComparison.OrdinalIgnoreCase)));
+
+        if (item is null)
+            return NotFound("Ürün sepette bulunamadı.");
+
+        basket.Items.Remove(item);
+        basket.SavedItems.Add(item);
+
+        var saved = await _repository.UpdateBasket(basket);
+        return Ok(saved);
+    }
+
+    [HttpPost("{userName}/move-to-cart/{productId}")]
+    public async Task<ActionResult<ShoppingCart>> MoveToCart(string userName, string productId, [FromQuery] string? variantId)
+    {
+        if (!CallerIdentity.CanAccessBasket(User, userName))
+            return Forbid();
+
+        var basket = await _repository.GetBasket(userName) ?? new ShoppingCart(userName);
+
+        var item = basket.SavedItems.FirstOrDefault(i =>
+            i.ProductId == productId &&
+            (variantId == null || string.Equals(i.VariantId, variantId, StringComparison.OrdinalIgnoreCase)));
+
+        if (item is null)
+            return NotFound("Ürün kaydedilenler listesinde bulunamadı.");
+
+        basket.SavedItems.Remove(item);
+        basket.Items.Add(item);
+
+        var saved = await _repository.UpdateBasket(basket);
+        return Ok(saved);
+    }
+
+    // CHECKOUT İŞLEMİ
     [Route("[action]")]
     [HttpPost]
     public async Task<IActionResult> Checkout([FromBody] BasketCheckout basketCheckout)
@@ -249,6 +342,10 @@ public class BasketController : ControllerBase
             "Sepet özeti. AraToplam={Subtotal}, İndirim={Discount}, Kargo={Shipping}, Toplam={Total}",
             summary.Subtotal, summary.DiscountAmount, summary.ShippingCost, summary.Total);
 
+        // Siparis numarasi burada uretilir; tesekkur sayfasi hemen gosterir.
+        var orderNumber =
+            $"YS-{DateTime.UtcNow:yyMMdd}-{Random.Shared.Next(1000, 9999)}";
+
         // 3. Event Mesajını Oluştur
         var eventMessage = new BasketCheckoutEventMessage
         {
@@ -259,10 +356,29 @@ public class BasketController : ControllerBase
             CouponCode = summary.AppliedCouponCode,
             ShippingCost = summary.ShippingCost,
             ShippingCarrierId = basketCheckout.ShippingCarrierId,
+            OrderNumber = orderNumber,
             FirstName = basketCheckout.FirstName,
             LastName = basketCheckout.LastName,
             EmailAddress = basketCheckout.EmailAddress,
             AddressLine = basketCheckout.AddressLine,
+            City = basketCheckout.City,
+            State = basketCheckout.State,
+            Country = basketCheckout.Country,
+            ZipCode = basketCheckout.ZipCode,
+            InvoiceType = basketCheckout.InvoiceType,
+            TaxId = basketCheckout.TaxId,
+            TaxOffice = basketCheckout.TaxOffice,
+            CompanyName = basketCheckout.CompanyName,
+            BillingSameAsShipping = basketCheckout.BillingSameAsShipping ?? true,
+            BillingAddressLine = basketCheckout.BillingAddressLine,
+            BillingCity = basketCheckout.BillingCity,
+            BillingState = basketCheckout.BillingState,
+            BillingCountry = basketCheckout.BillingCountry,
+            BillingZipCode = basketCheckout.BillingZipCode,
+            PaymentMethod = basketCheckout.PaymentMethod ?? "card",
+            OrderNote = basketCheckout.OrderNote,
+            GiftWrap = basketCheckout.GiftWrap,
+            GiftMessage = basketCheckout.GiftMessage,
 
             // Kart alanları kasıtlı olarak boş bırakılır (PCI / mock ödeme).
             CardName = string.Empty,
@@ -314,7 +430,7 @@ public class BasketController : ControllerBase
         if (basketCheckout.ShippingCarrierId.HasValue)
         {
             await _shippingService.CreateShipmentAsync(
-                $"{basketCheckout.UserName}-{DateTime.UtcNow:yyyyMMddHHmmss}",
+                orderNumber,
                 basketCheckout.UserName,
                 basketCheckout.ShippingCarrierId,
                 summary.ShippingCost,
@@ -334,6 +450,6 @@ public class BasketController : ControllerBase
         }
 
         // Hızlı response dön (202 Accepted - işlem asenkron devam ediyor)
-        return Accepted();
+        return Accepted(new { orderNumber, total = summary.Total, paymentMethod = basketCheckout.PaymentMethod ?? "card" });
     }
 }

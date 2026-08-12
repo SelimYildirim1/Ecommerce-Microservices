@@ -53,15 +53,18 @@ spec:
             - name: OpenTelemetry__Endpoint
               value: "http://jaeger:4317"
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /health
               port: 8080
             initialDelaySeconds: 15
             periodSeconds: 10
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /health
               port: 8080
-            initialDelaySeconds: 30
+            initialDelaySeconds: 40
             periodSeconds: 15
+            failureThreshold: 3
           resources:
             requests:
               memory: "128Mi"
@@ -125,15 +128,18 @@ spec:
             - name: OpenTelemetry__Endpoint
               value: "http://jaeger:4317"
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /health
               port: 8080
             initialDelaySeconds: 15
             periodSeconds: 10
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /health
               port: 8080
-            initialDelaySeconds: 30
+            initialDelaySeconds: 40
             periodSeconds: 15
+            failureThreshold: 3
           resources:
             requests:
               memory: "128Mi"
@@ -199,15 +205,18 @@ spec:
             - name: OpenTelemetry__Endpoint
               value: "http://jaeger:4317"
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /health
               port: 8080
             initialDelaySeconds: 15
             periodSeconds: 10
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /health
               port: 8080
-            initialDelaySeconds: 30
+            initialDelaySeconds: 40
             periodSeconds: 15
+            failureThreshold: 3
           resources:
             requests:
               memory: "128Mi"
@@ -271,15 +280,18 @@ spec:
             - name: OpenTelemetry__Endpoint
               value: "http://jaeger:4317"
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /health
               port: 8080
             initialDelaySeconds: 15
             periodSeconds: 10
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /health
               port: 8080
-            initialDelaySeconds: 30
+            initialDelaySeconds: 40
             periodSeconds: 15
+            failureThreshold: 3
           resources:
             requests:
               memory: "128Mi"
@@ -341,15 +353,18 @@ spec:
             - name: OpenTelemetry__Endpoint
               value: "http://jaeger:4317"
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /health
               port: 8080
             initialDelaySeconds: 15
             periodSeconds: 10
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /health
               port: 8080
-            initialDelaySeconds: 30
+            initialDelaySeconds: 40
             periodSeconds: 15
+            failureThreshold: 3
           resources:
             requests:
               memory: "128Mi"
@@ -424,15 +439,18 @@ spec:
             - name: ReverseProxy__Clusters__aggregator-cluster__Destinations__aggregator__Address
               value: "http://shopping-aggregator:8080"
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /health
               port: 8080
             initialDelaySeconds: 15
             periodSeconds: 10
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /health
               port: 8080
-            initialDelaySeconds: 30
+            initialDelaySeconds: 40
             periodSeconds: 15
+            failureThreshold: 3
           resources:
             requests:
               memory: "128Mi"

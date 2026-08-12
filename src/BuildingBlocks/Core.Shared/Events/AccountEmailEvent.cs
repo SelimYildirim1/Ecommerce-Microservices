@@ -12,6 +12,7 @@ public class AccountEmailEvent
 public class OrderShippedEvent
 {
     public Guid OrderId { get; set; }
+    public string? OrderNumber { get; set; }
     public string Email { get; set; } = default!;
     public string? TrackingNumber { get; set; }
 }

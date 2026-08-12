@@ -21,17 +21,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DataTable } from "@/components/data-table";
 import Image from "next/image";
 import { Store, Plus, Pencil, Trash2, Upload, Loader2, ImageIcon } from "lucide-react";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import toast from "react-hot-toast";
 
 type EditingBrand = BrandPayload & { id?: string };
@@ -55,6 +49,10 @@ export default function BrandsPage() {
       const body: BrandPayload = {
         name: payload.name,
         logoUrl: payload.logoUrl?.trim() ? payload.logoUrl.trim() : null,
+        slug: payload.slug?.trim() || null,
+        description: payload.description?.trim() || null,
+        metaTitle: payload.metaTitle?.trim() || null,
+        metaDescription: payload.metaDescription?.trim() || null,
       };
       return id ? updateBrand(id, body) : createBrand(body);
     },
@@ -92,13 +90,107 @@ export default function BrandsPage() {
   };
 
   const startEdit = (brand: Brand) =>
-    setEditing({ id: brand.id, name: brand.name, logoUrl: brand.logoUrl ?? "" });
+    setEditing({
+      id: brand.id,
+      name: brand.name,
+      logoUrl: brand.logoUrl ?? "",
+      slug: brand.slug ?? "",
+      description: brand.description ?? "",
+      metaTitle: brand.metaTitle ?? "",
+      metaDescription: brand.metaDescription ?? "",
+    });
+
+  const columns = useMemo<ColumnDef<Brand>[]>(
+    () => [
+      {
+        accessorKey: "logoUrl",
+        header: "Logo",
+        enableSorting: false,
+        cell: ({ row }) => {
+          const brand = row.original;
+          return (
+            <div className="relative h-10 w-10 overflow-hidden rounded border bg-muted">
+              {brand.logoUrl ? (
+                <Image
+                  src={resolveImageUrl(brand.logoUrl)}
+                  alt={brand.name}
+                  fill
+                  unoptimized
+                  className="object-contain"
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center">
+                  <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                </div>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "name",
+        header: "Marka Adı",
+        cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
+      },
+      {
+        accessorKey: "slug",
+        header: "Slug",
+        cell: ({ row }) => (
+          <span className="text-sm text-muted-foreground">{row.original.slug || "-"}</span>
+        ),
+      },
+      {
+        id: "actions",
+        header: () => <div className="text-right">İşlemler</div>,
+        enableSorting: false,
+        cell: ({ row }) => {
+          const brand = row.original;
+          return (
+            <div className="flex items-center justify-end gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                title="Düzenle"
+                onClick={() => startEdit(brand)}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                title="Sil"
+                onClick={() => {
+                  if (confirm(`"${brand.name}" silinecek. Emin misiniz?`)) {
+                    deleteMutation.mutate(brand.id);
+                  }
+                }}
+              >
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            </div>
+          );
+        },
+      },
+    ],
+    [deleteMutation]
+  );
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Marka Yönetimi</h1>
-        <Button onClick={() => setEditing({ name: "", logoUrl: "" })}>
+        <Button
+          onClick={() =>
+            setEditing({
+              name: "",
+              logoUrl: "",
+              slug: "",
+              description: "",
+              metaTitle: "",
+              metaDescription: "",
+            })
+          }
+        >
           <Plus className="mr-2 h-4 w-4" /> Yeni Marka
         </Button>
       </div>
@@ -111,74 +203,13 @@ export default function BrandsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <p className="text-muted-foreground">Yükleniyor...</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-16">Logo</TableHead>
-                  <TableHead>Marka Adı</TableHead>
-                  <TableHead className="text-right">İşlemler</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {brands.map((brand) => (
-                  <TableRow key={brand.id}>
-                    <TableCell>
-                      <div className="relative h-10 w-10 overflow-hidden rounded border bg-muted">
-                        {brand.logoUrl ? (
-                          <Image
-                            src={resolveImageUrl(brand.logoUrl)}
-                            alt={brand.name}
-                            fill
-                            unoptimized
-                            className="object-contain"
-                          />
-                        ) : (
-                          <div className="flex h-full items-center justify-center">
-                            <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-medium">{brand.name}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="Düzenle"
-                          onClick={() => startEdit(brand)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="Sil"
-                          onClick={() => {
-                            if (confirm(`"${brand.name}" silinecek. Emin misiniz?`)) {
-                              deleteMutation.mutate(brand.id);
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {brands.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={3} className="text-center text-muted-foreground">
-                      Henüz marka eklenmemiş
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          )}
+          <DataTable
+            columns={columns}
+            data={brands}
+            isLoading={isLoading}
+            emptyMessage="Henüz marka eklenmemiş"
+            getRowId={(row) => row.id}
+          />
         </CardContent>
       </Card>
 
@@ -199,6 +230,59 @@ export default function BrandsPage() {
                 }
                 placeholder="Örn: Apple"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="brand-slug">Slug</Label>
+              <Input
+                id="brand-slug"
+                value={editing?.slug ?? ""}
+                onChange={(e) =>
+                  setEditing((prev) => (prev ? { ...prev, slug: e.target.value } : prev))
+                }
+                placeholder="Boş bırakılırsa addan üretilir"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="brand-desc">Açıklama</Label>
+              <Input
+                id="brand-desc"
+                value={editing?.description ?? ""}
+                onChange={(e) =>
+                  setEditing((prev) =>
+                    prev ? { ...prev, description: e.target.value } : prev,
+                  )
+                }
+                placeholder="Marka açıklaması"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="brand-meta-title">Meta Title</Label>
+                <Input
+                  id="brand-meta-title"
+                  value={editing?.metaTitle ?? ""}
+                  onChange={(e) =>
+                    setEditing((prev) =>
+                      prev ? { ...prev, metaTitle: e.target.value } : prev,
+                    )
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="brand-meta-desc">Meta Description</Label>
+                <Input
+                  id="brand-meta-desc"
+                  value={editing?.metaDescription ?? ""}
+                  onChange={(e) =>
+                    setEditing((prev) =>
+                      prev ? { ...prev, metaDescription: e.target.value } : prev,
+                    )
+                  }
+                />
+              </div>
             </div>
 
             <div className="space-y-2">

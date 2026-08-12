@@ -1,13 +1,16 @@
 using Catalog.API.Data;
 using Catalog.API.Entities;
 using Catalog.API.Models;
+using Catalog.API.Security;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace Catalog.API.Controllers;
 
 /// <summary>
-/// Favori listesi. Sepette oldugu gibi kullanici kimligi route uzerinden tasinir.
+/// Favori listesi. Route userId geriye uyumluluk icin kalir; yazma islemlerinde
+/// JWT sub ile eslesmelidir (veya Admin).
 /// </summary>
 [Route("api/favorites")]
 [ApiController]
@@ -20,9 +23,13 @@ public class FavoritesController : ControllerBase
         _context = context;
     }
 
+    [Authorize]
     [HttpGet("{userId}")]
     public async Task<ActionResult<List<FavoriteDto>>> GetFavorites(string userId)
     {
+        if (!CallerIdentity.CanAccessUser(User, userId))
+            return Forbid();
+
         var favorites = await _context.Favorites
             .AsNoTracking()
             .Include(f => f.Product).ThenInclude(p => p.Images)
@@ -45,9 +52,13 @@ public class FavoritesController : ControllerBase
     }
 
     /// <summary>Yalnizca urun id listesi. Kart ikonlarini isaretlemek icin hafif uc.</summary>
+    [Authorize]
     [HttpGet("{userId}/ids")]
     public async Task<ActionResult<List<Guid>>> GetFavoriteIds(string userId)
     {
+        if (!CallerIdentity.CanAccessUser(User, userId))
+            return Forbid();
+
         var ids = await _context.Favorites
             .AsNoTracking()
             .Where(f => f.UserId == userId)
@@ -58,11 +69,15 @@ public class FavoritesController : ControllerBase
     }
 
     /// <summary>Favoriye ekler; zaten varsa cikarir. Sonucta guncel durumu doner.</summary>
+    [Authorize]
     [HttpPost("{userId}/toggle")]
     public async Task<ActionResult<object>> Toggle(string userId, [FromBody] ToggleFavoriteRequest request)
     {
         if (string.IsNullOrWhiteSpace(userId))
             return BadRequest("Kullanıcı bilgisi gerekli.");
+
+        if (!CallerIdentity.CanAccessUser(User, userId))
+            return Forbid();
 
         var productExists = await _context.Products.AnyAsync(p => p.Id == request.ProductId);
         if (!productExists) return NotFound("Ürün bulunamadı.");
@@ -88,9 +103,13 @@ public class FavoritesController : ControllerBase
         return Ok(new { productId = request.ProductId, isFavorite = true });
     }
 
+    [Authorize]
     [HttpDelete("{userId}/{productId:guid}")]
     public async Task<IActionResult> Remove(string userId, Guid productId)
     {
+        if (!CallerIdentity.CanAccessUser(User, userId))
+            return Forbid();
+
         var favorite = await _context.Favorites
             .FirstOrDefaultAsync(f => f.UserId == userId && f.ProductId == productId);
 

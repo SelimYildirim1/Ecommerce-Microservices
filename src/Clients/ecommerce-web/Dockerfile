@@ -3,6 +3,7 @@ FROM node:20-alpine
 
 # 2. Çalışma klasörünü ayarla
 WORKDIR /app
+RUN apk add --no-cache curl
 
 # 3. Paket listelerini kopyala ve yükle
 COPY package*.json ./
@@ -19,6 +20,11 @@ COPY . .
 # Build arg verilmezse lib/api.ts'deki fallback değerler kullanılır.
 ARG NEXT_PUBLIC_API_GATEWAY_URL
 ARG NEXT_PUBLIC_SIGNALR_URL
+ARG NEXT_PUBLIC_SITE_URL
+
+ENV NEXT_PUBLIC_API_GATEWAY_URL=$NEXT_PUBLIC_API_GATEWAY_URL
+ENV NEXT_PUBLIC_SIGNALR_URL=$NEXT_PUBLIC_SIGNALR_URL
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 
 # 6. Projeyi derle (Production Build)
 RUN npm run build

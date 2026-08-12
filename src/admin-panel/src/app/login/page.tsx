@@ -25,8 +25,8 @@ function LoginForm() {
     try {
       const { token } = await login(email, password);
       setToken(token);
-      const next = searchParams.get("next") || "/";
-      router.replace(next);
+      const next = searchParams.get("next") || "/dashboard";
+      router.replace(next.startsWith("/") ? next : "/dashboard");
       router.refresh();
     } catch (err) {
       setError((err as Error).message);

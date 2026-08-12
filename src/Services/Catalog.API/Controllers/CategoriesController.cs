@@ -35,12 +35,41 @@ public class CategoriesController : ControllerBase
                 c.Id,
                 c.Name,
                 c.ParentId,
+                c.Slug,
                 c.ImageUrl,
                 c.SortOrder,
-                c.Products.Count(p => p.IsActive)))
+                c.IsFeatured,
+                c.ShowInMenu,
+                c.Products.Count(p => p.IsActive),
+                c.MetaTitle,
+                c.MetaDescription))
             .ToListAsync(ct);
 
         return Ok(categories);
+    }
+
+    /// <summary>Slug ile kategori getirir (SEO dostu kategori sayfası).</summary>
+    [HttpGet("by-slug/{slug}")]
+    public async Task<IActionResult> GetBySlug(string slug, CancellationToken ct)
+    {
+        var category = await _context.Categories
+            .AsNoTracking()
+            .Where(c => c.Slug == slug)
+            .Select(c => new StorefrontCategoryDto(
+                c.Id,
+                c.Name,
+                c.ParentId,
+                c.Slug,
+                c.ImageUrl,
+                c.SortOrder,
+                c.IsFeatured,
+                c.ShowInMenu,
+                c.Products.Count(p => p.IsActive),
+                c.MetaTitle,
+                c.MetaDescription))
+            .FirstOrDefaultAsync(ct);
+
+        return category is null ? NotFound() : Ok(category);
     }
 
     /// <summary>
@@ -80,6 +109,11 @@ public record StorefrontCategoryDto(
     Guid Id,
     string Name,
     Guid? ParentId,
+    string? Slug,
     string? ImageUrl,
     int SortOrder,
-    int ProductCount);
+    bool IsFeatured,
+    bool ShowInMenu,
+    int ProductCount,
+    string? MetaTitle = null,
+    string? MetaDescription = null);

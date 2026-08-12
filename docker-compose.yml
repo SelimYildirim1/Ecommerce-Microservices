@@ -4,6 +4,7 @@ services:
   postgres-db:
     image: postgres:latest
     container_name: ecommerce-postgres
+    restart: unless-stopped
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
@@ -25,6 +26,14 @@ services:
   redis-db:
     image: redis:alpine
     container_name: ecommerce-redis
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     ports:
       - "6379:6379"
     networks:
@@ -33,6 +42,14 @@ services:
   rabbitmq:
     image: rabbitmq:3-management
     container_name: ecommerce-rabbitmq
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
     hostname: rabbitmq
     environment:
       - RABBITMQ_DEFAULT_USER=guest
@@ -50,6 +67,14 @@ services:
       context: .
       dockerfile: src/Services/Identity.API/Dockerfile
     container_name: identity-api
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       # Docker içinde Postgres'e 'localhost' diyemeyiz, 'postgres-db' demeliyiz
@@ -68,6 +93,14 @@ services:
       context: .
       dockerfile: src/Services/Catalog.API/Dockerfile
     container_name: catalog-api
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=CatalogDb;User Id=postgres;Password=postgres;
@@ -91,6 +124,14 @@ services:
       context: .
       dockerfile: src/Services/Basket.API/Dockerfile
     container_name: basket-api
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__Redis=redis-db:6379
@@ -114,6 +155,14 @@ services:
       context: .
       dockerfile: src/Services/Order.API/Dockerfile
     container_name: order-api
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=OrderDb;User Id=postgres;Password=postgres;
@@ -134,6 +183,14 @@ services:
       context: .
       dockerfile: src/Services/Promotion.API/Dockerfile
     container_name: promotion-api
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=PromotionDb;User Id=postgres;Password=postgres;
@@ -150,6 +207,14 @@ services:
       context: .
       dockerfile: src/Services/Shipping.API/Dockerfile
     container_name: shipping-api
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=ShippingDb;User Id=postgres;Password=postgres;
@@ -166,6 +231,14 @@ services:
       context: .
       dockerfile: src/Services/Payment.API/Dockerfile
     container_name: payment-api
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - RabbitMQ__HostName=rabbitmq
@@ -182,6 +255,7 @@ services:
   mailhog:
     image: mailhog/mailhog:latest
     container_name: ecommerce-mailhog
+    restart: unless-stopped
     ports:
       - "1025:1025"
       - "8025:8025"
@@ -193,17 +267,27 @@ services:
       context: .
       dockerfile: src/Services/Notification.API/Dockerfile
     container_name: notification-api
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - RabbitMQ__HostName=rabbitmq
       - OpenTelemetry__Endpoint=http://ecommerce-jaeger:4317
       - Smtp__Host=mailhog
       - Smtp__Port=1025
+      - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=NotificationDb;User Id=postgres;Password=postgres;
     ports:
       - "5300:8080"
     depends_on:
       - rabbitmq
       - mailhog
+      - postgres-db
     networks:
       - ecommerce-network
 
@@ -212,6 +296,14 @@ services:
       context: .
       dockerfile: src/Shopping.Aggregator/Dockerfile
     container_name: shopping-aggregator
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - Services__OrderApi=http://order-api:8080
@@ -232,6 +324,14 @@ services:
       context: .
       dockerfile: src/API.Gateway/Dockerfile
     container_name: api-gateway
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - Identity__Url=http://identity-api:8080
@@ -263,30 +363,63 @@ services:
     build:
       context: ./src/Clients/ecommerce-web
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_GATEWAY_URL: ${NEXT_PUBLIC_API_GATEWAY_URL:-http://localhost:8001}
+        NEXT_PUBLIC_SIGNALR_URL: ${NEXT_PUBLIC_SIGNALR_URL:-http://localhost:5059}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
     container_name: ecommerce-web
-    restart: always
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/ || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
     environment:
-      - NODE_ENV=development
-      # Hot Reload'ın (Anlık güncelleme) Mac'te düzgün çalışması için:
-      - WATCHPACK_POLLING=true
-      # Tarayıcıdan API/görsel URL'i (VPS'te .env ile IP veya domain ver)
-      # Örn: NEXT_PUBLIC_API_GATEWAY_URL=http://212.108.107.48:8001
+      - NODE_ENV=production
+      # Tarayıcıdan API/görsel URL'i (.env ile tek domain yönet)
+      # Prod örnek: NEXT_PUBLIC_API_GATEWAY_URL=https://eticaret.example.com/gateway
+      #             NEXT_PUBLIC_SIGNALR_URL=https://eticaret.example.com
       - NEXT_PUBLIC_API_GATEWAY_URL=${NEXT_PUBLIC_API_GATEWAY_URL:-http://localhost:8001}
       - NEXT_PUBLIC_SIGNALR_URL=${NEXT_PUBLIC_SIGNALR_URL:-http://localhost:5059}
+      - NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
       # SSR fetch'ler container içinden gateway'e gider
       - INTERNAL_API_URL=${INTERNAL_API_URL:-http://api-gateway:8080}
     ports:
       - "3000:3000"
-    volumes:
-      # 1. BÜYÜK SİHİR: Bilgisayarındaki klasörü (/src/...)
-      # konteynerin içine (/app) canlı yansıt.
-      - ./src/Clients/ecommerce-web:/app
+    depends_on:
+      - api.gateway
+    networks:
+      - ecommerce-network
 
-      # 2. KORUMA KALKANI: Konteynerin kendi 'node_modules' klasörüne dokunma.
-      # (Senin bilgisayarındaki node_modules ile karışmasın diye)
-      - /app/node_modules
-      - /app/.next
-    command: npm run dev
+  # Yönetim paneli — http://localhost:3002 (3001 Grafana monitoring profiline ayrıldı)
+  # Prod: nginx ile admin.DOMAIN altına alınır
+  admin.panel:
+    build:
+      context: ./src/admin-panel
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${ADMIN_NEXT_PUBLIC_API_URL:-http://localhost:8001/aggregator/admin}
+        NEXT_PUBLIC_AUTH_URL: ${ADMIN_NEXT_PUBLIC_AUTH_URL:-http://localhost:8001/auth}
+        NEXT_PUBLIC_MEDIA_URL: ${ADMIN_NEXT_PUBLIC_MEDIA_URL:-http://localhost:8001/media}
+        NEXT_PUBLIC_CATALOG_ADMIN_URL: ${ADMIN_NEXT_PUBLIC_CATALOG_ADMIN_URL:-http://localhost:8001/catalog/admin}
+        NEXT_PUBLIC_PROMOTION_URL: ${ADMIN_NEXT_PUBLIC_PROMOTION_URL:-http://localhost:8001/promotions/admin}
+        NEXT_PUBLIC_SHIPPING_URL: ${ADMIN_NEXT_PUBLIC_SHIPPING_URL:-http://localhost:8001/shipping/admin}
+    container_name: ecommerce-admin
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/admin/login || wget -q -O /dev/null http://127.0.0.1:3000/admin/login || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    ports:
+      # Sadece localhost — dışarıdan IP:3002 ile erişim yok; nginx /admin üzerinden
+      - "127.0.0.1:3002:3000"
     depends_on:
       - api.gateway
     networks:
@@ -297,6 +430,7 @@ services:
   seq:
     image: datalust/seq:latest
     container_name: ecommerce-seq
+    restart: unless-stopped
     profiles: ["monitoring"]
     environment:
       - ACCEPT_EULA=Y
@@ -312,6 +446,7 @@ services:
   jaeger:
     image: jaegertracing/all-in-one:latest
     container_name: ecommerce-jaeger
+    restart: unless-stopped
     profiles: ["monitoring"]
     environment:
       - COLLECTOR_OTLP_ENABLED=true
@@ -327,6 +462,7 @@ services:
   prometheus:
     image: prom/prometheus:latest
     container_name: ecommerce-prometheus
+    restart: unless-stopped
     profiles: ["monitoring"]
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
@@ -350,6 +486,7 @@ services:
   grafana:
     image: grafana/grafana:latest
     container_name: ecommerce-grafana
+    restart: unless-stopped
     profiles: ["monitoring"]
     environment:
       - GF_SECURITY_ADMIN_USER=admin
@@ -365,13 +502,49 @@ services:
     depends_on:
       - prometheus
 
+
+  # Unhealthy container'lari otomatik restart eder (healthcheck gerekir)
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: ecommerce-autoheal
+    restart: always
+    environment:
+      - AUTOHEAL_CONTAINER_LABEL=all
+      - AUTOHEAL_INTERVAL=20
+      - AUTOHEAL_START_PERIOD=120
+      - AUTOHEAL_DEFAULT_STOP_TIMEOUT=10
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - ecommerce-network
+
+  # Docker / konteyner izleme paneli (Portainer CE)
+  # Erisim: https://VPS_IP:9443
+  # Admin sifresi sunucuda: /root/.portainer_admin_password
+  # Not: Ilk kurulumda admin API/UI ile olusturulur; sifre sifirlamak icin:
+  #   docker stop ecommerce-portainer
+  #   docker run --rm -v ecommerce_portainer_data:/data portainer/helper-reset-password
+  #   docker start ecommerce-portainer
+  portainer:
+    image: portainer/portainer-ce:lts
+    container_name: ecommerce-portainer
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "9443:9443"
+    networks:
+      - ecommerce-network
+
 volumes:
   postgres_data:
   grafana_data:
   catalog_uploads:
+  portainer_data:
 
 networks:
   ecommerce-network:
     driver: bridge
 
-  

@@ -41,10 +41,18 @@ public class PaymentSucceededConsumer : IConsumer<PaymentSucceededEvent>
 
         var previousStatus = order.OrderStatus;
         order.SetStatus("Paid");
+        _context.OrderStatusHistories.Add(new Order.API.Entities.OrderStatusHistory
+        {
+            Id = Guid.NewGuid(),
+            OrderId = order.Id,
+            Status = "Paid",
+            Note = "Ödeme alındı",
+            CreatedAt = DateTime.UtcNow
+        });
 
         await _context.SaveChangesAsync(context.CancellationToken);
-        _logger.LogInformation("Sipariş durumu güncellendi. OrderId={OrderId}, {Previous} -> Paid",
-            msg.OrderId, previousStatus);
+        _logger.LogInformation("Sipariş durumu güncellendi. OrderId={OrderId}, OrderNumber={OrderNumber}, {Previous} -> Paid",
+            msg.OrderId, order.OrderNumber, previousStatus);
 
         // SignalR üzerinden ilgili kullanıcıya gerçek zamanlı bilgi gönder
         try
@@ -56,6 +64,7 @@ public class PaymentSucceededConsumer : IConsumer<PaymentSucceededEvent>
                 new
                 {
                     orderId = order.Id,
+                    orderNumber = order.OrderNumber,
                     status = order.OrderStatus,
                     updatedAt = DateTime.UtcNow
                 },

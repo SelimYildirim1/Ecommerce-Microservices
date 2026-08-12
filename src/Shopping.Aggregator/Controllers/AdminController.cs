@@ -99,12 +99,23 @@ public class AdminController : ControllerBase
         });
     }
 
-    /// <summary>Sipariş listesi</summary>
+    /// <summary>Sipariş listesi (tarih/durum/arama + sayfalama)</summary>
     [HttpGet("orders")]
-    public async Task<IActionResult> GetOrders()
+    public async Task<IActionResult> GetOrders(
+        [FromQuery] DateTime? from = null,
+        [FromQuery] DateTime? to = null,
+        [FromQuery] string? status = null,
+        [FromQuery] string? search = null,
+        [FromQuery] int? page = null,
+        [FromQuery] int? pageSize = null)
     {
-        var orders = await _orderService.GetAllOrdersAsync();
-        return Ok(orders.OrderByDescending(o => o.OrderDate));
+        if (page is null)
+        {
+            var orders = await _orderService.GetAllOrdersAsync(from, to, status, search);
+            return Ok(orders.OrderByDescending(o => o.OrderDate));
+        }
+
+        return await Proxy(_orderService.GetRawAsync(BuildOrdersQueryPath("/api/orders/all", from, to, status, search, page, pageSize)));
     }
 
     /// <summary>Sipariş detayı</summary>
@@ -120,17 +131,88 @@ public class AdminController : ControllerBase
     [HttpPut("orders/{orderId:guid}/status")]
     public async Task<IActionResult> UpdateOrderStatus(Guid orderId, [FromBody] UpdateStatusRequest req)
     {
-        var success = await _orderService.UpdateOrderStatusAsync(orderId, req.Status);
+        var success = await _orderService.UpdateOrderStatusAsync(orderId, req.Status, req.TrackingNumber);
         if (!success) return BadRequest("Durum güncellenemedi.");
         return Ok(new { orderId, req.Status });
     }
 
+    /// <summary>Admin sipariş notu</summary>
+    [HttpPut("orders/{orderId:guid}/note")]
+    public Task<IActionResult> UpdateOrderNote(Guid orderId, [FromBody] JsonElement? body)
+        => Proxy(_orderService.PutAsync($"/api/orders/{orderId}/note", body));
+
+    /// <summary>Manuel sipariş oluştur</summary>
+    [HttpPost("orders/manual")]
+    public Task<IActionResult> CreateManualOrder([FromBody] JsonElement? body)
+        => Proxy(_orderService.PostAsync("/api/orders/manual", body));
+
+    /// <summary>Sipariş CSV export</summary>
+    [HttpGet("orders/export")]
+    public Task<IActionResult> ExportOrders(
+        [FromQuery] DateTime? from = null,
+        [FromQuery] DateTime? to = null,
+        [FromQuery] string? status = null,
+        [FromQuery] string? search = null)
+        => ProxyBinary(_orderService.GetBinaryAsync(BuildOrdersQueryPath("/api/orders/export", from, to, status, search, null, null)));
+
+    /// <summary>Fatura PDF</summary>
+    [HttpGet("orders/{orderId:guid}/invoice.pdf")]
+    public Task<IActionResult> GetInvoicePdf(Guid orderId)
+        => ProxyBinary(_orderService.GetBinaryAsync($"/api/orders/{orderId}/invoice.pdf"));
+
+    private static string BuildOrdersQueryPath(
+        string path,
+        DateTime? from,
+        DateTime? to,
+        string? status,
+        string? search,
+        int? page,
+        int? pageSize)
+    {
+        var qs = new List<string>();
+        if (from.HasValue) qs.Add($"from={Uri.EscapeDataString(from.Value.ToString("o"))}");
+        if (to.HasValue) qs.Add($"to={Uri.EscapeDataString(to.Value.ToString("o"))}");
+        if (!string.IsNullOrWhiteSpace(status)) qs.Add($"status={Uri.EscapeDataString(status)}");
+        if (!string.IsNullOrWhiteSpace(search)) qs.Add($"search={Uri.EscapeDataString(search)}");
+        if (page.HasValue) qs.Add($"page={page.Value}");
+        if (pageSize.HasValue) qs.Add($"pageSize={pageSize.Value}");
+        return qs.Count == 0 ? path : $"{path}?{string.Join("&", qs)}";
+    }
+
+    private async Task<IActionResult> ProxyBinary(Task<BinaryProxyResult> call)
+    {
+        try
+        {
+            var result = await call;
+            if (result.StatusCode < 200 || result.StatusCode >= 300 || result.Content is null)
+                return StatusCode(result.StatusCode);
+
+            return new FileContentResult(result.Content, result.ContentType)
+            {
+                FileDownloadName = result.FileName
+            };
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "Alt servise ulasilamadi.");
+            return StatusCode(StatusCodes.Status502BadGateway, "Servise ulaşılamadı.");
+        }
+    }
+
     /// <summary>Müşteri listesi</summary>
     [HttpGet("customers")]
-    public Task<IActionResult> GetCustomers([FromQuery] string? search)
-        => Proxy(_identityService.GetRawAsync(
-            "/api/auth/users" + (string.IsNullOrWhiteSpace(search) ? "" : $"?search={Uri.EscapeDataString(search)}"),
-            BearerToken()));
+    public Task<IActionResult> GetCustomers(
+        [FromQuery] string? search,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50)
+    {
+        var qs = new List<string>();
+        if (!string.IsNullOrWhiteSpace(search))
+            qs.Add($"search={Uri.EscapeDataString(search)}");
+        qs.Add($"page={page}");
+        qs.Add($"pageSize={pageSize}");
+        return Proxy(_identityService.GetRawAsync($"/api/auth/users?{string.Join("&", qs)}", BearerToken()));
+    }
 
     /// <summary>Müşteri detayı (roller ve adres defteri)</summary>
     [HttpGet("customers/{userId}")]
@@ -277,6 +359,10 @@ public class AdminController : ControllerBase
         => Proxy(_catalogService.DeleteAsync(
             $"/api/admin/categories/{categoryId}/attributes/{attributeId}"));
 
+    [HttpPost("categories/reorder")]
+    public Task<IActionResult> ReorderCategories([FromBody] JsonElement? body)
+        => Proxy(_catalogService.PostAsync("/api/admin/categories/reorder", body));
+
     [HttpPost("brands")]
     public Task<IActionResult> CreateBrand([FromBody] JsonElement body)
         => Proxy(_catalogService.PostAsync("/api/admin/brands", body));
@@ -341,7 +427,7 @@ public class AdminController : ControllerBase
 }
 
 // Dashboard DTOs
-public record UpdateStatusRequest(string Status);
+public record UpdateStatusRequest(string Status, string? TrackingNumber = null);
 
 public class DashboardSummaryResponse
 {

@@ -71,6 +71,31 @@ body {
   font-family: var(--font-playfair), ui-serif, Georgia, serif;
 }
 
+/* Erişilebilirlik: odaklanınca görünen skip link */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.sr-only:focus,
+.focus\:not-sr-only:focus {
+  position: absolute;
+  width: auto;
+  height: auto;
+  padding: inherit;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
+
 /* Smooth scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
@@ -87,4 +112,53 @@ body {
 ::selection {
   background: hsl(var(--primary));
   color: hsl(var(--primary-foreground));
+}
+
+/* Blog yazı gövdesi — site Inter fontu, siyah-beyaz, numaralı/noktalı listeler */
+.blog-prose a {
+  color: hsl(var(--foreground));
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.blog-prose h2 {
+  margin-top: 2.5rem;
+  scroll-margin-top: 7rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: hsl(var(--foreground));
+}
+.blog-prose h3 {
+  margin-top: 1.75rem;
+  scroll-margin-top: 7rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+.blog-prose p {
+  margin-top: 1rem;
+}
+.blog-prose img {
+  margin: 1.5rem 0;
+  border-radius: 0.75rem;
+}
+.blog-prose ul,
+.blog-prose ol {
+  margin-top: 1rem;
+  margin-bottom: 0.25rem;
+  padding-left: 1.5rem;
+}
+.blog-prose ul {
+  list-style-type: disc;
+}
+.blog-prose ol {
+  list-style-type: decimal;
+}
+.blog-prose li {
+  margin-top: 0.45rem;
+  padding-left: 0.25rem;
+}
+.blog-prose li::marker {
+  color: hsl(var(--foreground));
+  font-weight: 600;
 }

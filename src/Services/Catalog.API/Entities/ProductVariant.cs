@@ -18,6 +18,10 @@ public class ProductVariant : BaseEntity
     public string Sku { get; set; } = default!;
 
     public decimal Price { get; set; }
+
+    /// <summary>İndirim öncesi fiyat. Price'dan yüksekse ürün "indirimli" sayılır.</summary>
+    public decimal? CompareAtPrice { get; set; }
+
     public int StockQuantity { get; set; }
 
     /// <summary>

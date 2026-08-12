@@ -98,7 +98,7 @@ export default function AddressBook() {
 
   return (
     <Card
-      title="Adres defteri"
+      title="Adreslerim"
       action={
         !showForm && (
           <button

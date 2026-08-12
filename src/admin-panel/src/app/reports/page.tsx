@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import {
+  getConversionReport,
   getCustomerReport,
   getProductReport,
   getReturnReport,
@@ -71,6 +72,7 @@ export default function ReportsPage() {
           <TabsTrigger value="sales">Satış</TabsTrigger>
           <TabsTrigger value="products">Ürün</TabsTrigger>
           <TabsTrigger value="customers">Müşteri</TabsTrigger>
+          <TabsTrigger value="conversion">Dönüşüm</TabsTrigger>
           <TabsTrigger value="stock">Stok</TabsTrigger>
           <TabsTrigger value="returns">İade</TabsTrigger>
         </TabsList>
@@ -83,6 +85,9 @@ export default function ReportsPage() {
         </TabsContent>
         <TabsContent value="customers" className="mt-4">
           <CustomerReportView days={days} />
+        </TabsContent>
+        <TabsContent value="conversion" className="mt-4">
+          <ConversionReportView days={days} />
         </TabsContent>
         <TabsContent value="stock" className="mt-4">
           <StockReportView />
@@ -560,6 +565,74 @@ function ReturnReportView({ days }: { days: number }) {
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+function ConversionReportView({ days }: { days: number }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["report-conversion", days],
+    queryFn: () => getConversionReport(days),
+  });
+
+  if (isLoading) return <Loading />;
+  if (!data) return null;
+
+  return (
+    <div className="space-y-6">
+      <StatGrid
+        items={[
+          { label: "Yeni üye", value: data.newUsers },
+          { label: "Sipariş", value: data.totalOrders },
+          { label: "Ödeme alan", value: data.paidOrders },
+          { label: "Teslim", value: data.deliveredOrders },
+        ]}
+      />
+
+      <StatGrid
+        items={[
+          { label: "Üye → Sipariş %", value: `%${data.registrationToOrderRate}` },
+          { label: "Sipariş → Ödeme %", value: `%${data.orderToPaidRate}` },
+          { label: "Ödeme → Teslim %", value: `%${data.paidToDeliveredRate}` },
+          { label: "İptal", value: data.cancelledOrders },
+        ]}
+      />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Dönüşüm hunisi</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={data.stages}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="label" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="count" fill="hsl(var(--chart-2))" name="Adet" />
+            </BarChart>
+          </ResponsiveContainer>
+
+          <Table className="mt-4">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Aşama</TableHead>
+                <TableHead>Adet</TableHead>
+                <TableHead>Oran</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.stages.map((stage) => (
+                <TableRow key={stage.key}>
+                  <TableCell>{stage.label}</TableCell>
+                  <TableCell>{stage.count}</TableCell>
+                  <TableCell>%{stage.rate}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
 }

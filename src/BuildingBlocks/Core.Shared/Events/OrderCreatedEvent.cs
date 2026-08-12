@@ -7,6 +7,7 @@ namespace Core.Shared.Events;
 public class OrderCreatedEvent
 {
     public Guid OrderId { get; set; }
+    public string? OrderNumber { get; set; }
     public string BuyerId { get; set; } = default!;
     public string Email { get; set; } = default!;
     public decimal TotalPrice { get; set; }

@@ -13,6 +13,7 @@ RUN dotnet publish "src/Services/Order.API/Order.API.csproj" -c Release -o /app/
 # 2. Aşama: Runtime (Çalıştırma)
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/out .
 
 # Docker içinde API 8080 portundan yayın yapar

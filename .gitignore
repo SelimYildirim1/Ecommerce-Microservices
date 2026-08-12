@@ -28,4 +28,5 @@ bin/
 
 # Environment config
 .env
+secrets/
 /data/

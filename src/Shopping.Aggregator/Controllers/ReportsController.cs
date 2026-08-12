@@ -208,6 +208,55 @@ public class ReportsController : ControllerBase
         });
     }
 
+    /// <summary>Dönüşüm hunisi: kayıt → sipariş → ödeme → kargo → teslim.</summary>
+    [HttpGet("conversion")]
+    public async Task<IActionResult> Conversion([FromQuery] int days = 30)
+    {
+        var range = Math.Clamp(days, 1, 365);
+        var from = DateTime.UtcNow.Date.AddDays(-(range - 1));
+
+        var ordersTask = SafeCall(() => _orderService.GetAllOrdersAsync(), new List<OrderDto>());
+        var usersTask = SafeCall(() => _identityService.GetAllUsersAsync(), new List<UserDto>());
+        await Task.WhenAll(ordersTask, usersTask);
+
+        var orders = ordersTask.Result.Where(o => o.OrderDate.Date >= from).ToList();
+        var users = usersTask.Result;
+        var newUsers = users.Count(u => u.CreatedAt.Date >= from);
+
+        var submitted = orders.Count;
+        var paid = orders.Count(o => RevenueStatuses.Contains(o.OrderStatus) || o.OrderStatus is "Paid" or "Shipped" or "Delivered");
+        var shipped = orders.Count(o => o.OrderStatus is "Shipped" or "Delivered");
+        var delivered = orders.Count(o => o.OrderStatus == "Delivered");
+        var cancelled = orders.Count(o => o.OrderStatus is "Cancelled" or "PaymentFailed" or "Failed");
+
+        static double Rate(int part, int whole) =>
+            whole <= 0 ? 0 : Math.Round(100.0 * part / whole, 1);
+
+        var stages = new[]
+        {
+            new { key = "registered", label = "Yeni üye", count = newUsers, rate = 100.0 },
+            new { key = "ordered", label = "Sipariş oluşturan", count = submitted, rate = Rate(submitted, Math.Max(newUsers, 1)) },
+            new { key = "paid", label = "Ödeme alan", count = paid, rate = Rate(paid, Math.Max(submitted, 1)) },
+            new { key = "shipped", label = "Kargolanan", count = shipped, rate = Rate(shipped, Math.Max(paid, 1)) },
+            new { key = "delivered", label = "Teslim edilen", count = delivered, rate = Rate(delivered, Math.Max(shipped, 1)) },
+        };
+
+        return Ok(new
+        {
+            days = range,
+            newUsers,
+            totalOrders = submitted,
+            paidOrders = paid,
+            shippedOrders = shipped,
+            deliveredOrders = delivered,
+            cancelledOrders = cancelled,
+            registrationToOrderRate = Rate(submitted, Math.Max(newUsers, 1)),
+            orderToPaidRate = Rate(paid, Math.Max(submitted, 1)),
+            paidToDeliveredRate = Rate(delivered, Math.Max(paid, 1)),
+            stages
+        });
+    }
+
     /// <summary>Stok raporu: Catalog.API'nin stok ozetini oldugu gibi aktarir.</summary>
     [HttpGet("stock")]
     public Task<IActionResult> Stock([FromQuery] bool lowStockOnly = false) =>

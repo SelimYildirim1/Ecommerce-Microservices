@@ -62,8 +62,7 @@ export default function RegisterPage() {
         const raw = await res.text().catch(() => "");
         notify.error(parseApiError(raw, "Kayıt tamamlanamadı. Bilgileri kontrol edin."));
       }
-    } catch (error) {
-      console.error(error);
+    } catch {
       notify.error("Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin.");
     } finally {
       setLoading(false);

@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  basePath: "/admin",
   reactCompiler: true,
   images: {
     // Urun gorselleri hem yerel gateway'den hem dis kaynaklardan gelebiliyor

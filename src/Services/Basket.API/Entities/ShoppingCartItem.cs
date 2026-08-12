@@ -10,4 +10,13 @@ public class ShoppingCartItem
 
     /// <summary>Eski sepet kayitlarinda bulunmayabilir; bos ise vitrin katalogdan gorsel cozer.</summary>
     public string? PictureUrl { get; set; }
+
+    /// <summary>Secilen varyant; eski kayitlarda yoksa null (geriye uyumlu).</summary>
+    public string? VariantId { get; set; }
+}
+
+public class MergeBasketRequest
+{
+    public string FromUserName { get; set; } = default!;
+    public string ToUserName { get; set; } = default!;
 }

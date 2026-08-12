@@ -4,6 +4,7 @@ public class ShoppingCart
 {
     public string UserName { get; set; } = default!;
     public List<ShoppingCartItem> Items { get; set; } = new();
+    public List<ShoppingCartItem> SavedItems { get; set; } = new();
 
     public ShoppingCart()
     {

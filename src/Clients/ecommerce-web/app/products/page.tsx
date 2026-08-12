@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
 import { ChevronRight, SearchX } from "lucide-react";
 import Header from "@/components/Header";
 import ProductCard from "@/components/ProductCard";
 import ProductFilters, { SortSelect } from "@/components/ProductFilters";
+import MobileFilterDrawer from "@/components/MobileFilterDrawer";
+import ProductViewControls from "@/components/ProductViewControls";
 import Pagination from "@/components/Pagination";
 import { serverFetchJson } from "@/lib/server-fetch";
 import {
@@ -12,6 +15,17 @@ import {
   type Product,
   type ProductFacets,
 } from "@/lib/catalog";
+
+export const metadata: Metadata = {
+  title: "Ürünler",
+  description: "Tüm ürünleri keşfedin — filtreleyin, sıralayın, karşılaştırın.",
+  alternates: { canonical: "/products" },
+  openGraph: {
+    title: "Ürünler | Yıldırım Store",
+    description: "Tüm ürünleri keşfedin — filtreleyin, sıralayın, karşılaştırın.",
+    url: "/products",
+  },
+};
 
 const EMPTY_FACETS: ProductFacets = {
   categories: [],
@@ -34,7 +48,11 @@ function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-/** URL parametrelerini Catalog.API'nin bekledigi sorgu dizisine cevirir. */
+function resolvePageSize(raw: string | undefined): number {
+  const n = Number(raw ?? PAGE_SIZE);
+  return [12, 24, 48].includes(n) ? n : PAGE_SIZE;
+}
+
 function buildQuery(searchParams: SearchParams): URLSearchParams {
   const query = new URLSearchParams();
 
@@ -56,7 +74,7 @@ function buildQuery(searchParams: SearchParams): URLSearchParams {
 
   const page = Number(first(searchParams.page) ?? "1");
   query.set("page", String(Number.isFinite(page) && page > 0 ? page : 1));
-  query.set("pageSize", String(PAGE_SIZE));
+  query.set("pageSize", String(resolvePageSize(first(searchParams.pageSize))));
 
   return query;
 }
@@ -68,6 +86,7 @@ export default async function ProductsPage({
 }) {
   const params = await searchParams;
   const query = buildQuery(params);
+  const view = first(params.view) === "list" ? "list" : "grid";
 
   const facetQuery = new URLSearchParams();
   const term = first(params.q);
@@ -79,16 +98,27 @@ export default async function ProductsPage({
     serverFetchJson<PagedResult<Product>>(
       `/catalog/products/search?${query}`,
       EMPTY_RESULT,
+      { revalidate: 60 },
     ),
     serverFetchJson<ProductFacets>(
       `/catalog/products/facets?${facetQuery}`,
       EMPTY_FACETS,
+      { revalidate: 60 },
     ),
   ]);
 
-  // Sayfalama linkleri sayfa disindaki tum filtreleri korumali
   const linkParams: Record<string, string> = {};
-  for (const key of ["q", "category", "brand", "minPrice", "maxPrice", "sort", "inStock"]) {
+  for (const key of [
+    "q",
+    "category",
+    "brand",
+    "minPrice",
+    "maxPrice",
+    "sort",
+    "inStock",
+    "view",
+    "pageSize",
+  ]) {
     const value = first(params[key]);
     if (value) linkParams[key] = value;
   }
@@ -99,7 +129,7 @@ export default async function ProductsPage({
     <div className="bg-white text-gray-900">
       <Header />
 
-      <main className="mx-auto max-w-[1600px] px-6 py-8 md:px-12">
+      <main className="mx-auto max-w-[1600px] px-6 py-8 pb-28 md:px-12 md:pb-8">
         <nav className="mb-4 flex items-center gap-1.5 text-sm text-gray-500">
           <Link href="/" className="transition-colors hover:text-gray-900">
             Anasayfa
@@ -111,18 +141,33 @@ export default async function ProductsPage({
         <h1 className="font-display mb-8 text-3xl font-bold md:text-4xl">{heading}</h1>
 
         <div className="flex flex-col gap-8 lg:flex-row">
-          <Suspense fallback={<div className="h-96 w-full animate-pulse rounded-2xl bg-gray-50 lg:w-64" />}>
-            <ProductFilters facets={facets} />
-          </Suspense>
+          <div className="hidden lg:block">
+            <Suspense
+              fallback={<div className="h-96 w-64 animate-pulse rounded-2xl bg-gray-50" />}
+            >
+              <ProductFilters facets={facets} />
+            </Suspense>
+          </div>
 
           <section className="min-w-0 flex-1">
             <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm text-gray-500">
-                <span className="font-semibold text-gray-900">{result.total}</span> ürün bulundu
-              </p>
-              <Suspense fallback={<div className="h-9 w-48 rounded-lg bg-gray-50" />}>
-                <SortSelect />
-              </Suspense>
+              <div className="flex items-center gap-3">
+                <Suspense fallback={null}>
+                  <MobileFilterDrawer facets={facets} />
+                </Suspense>
+                <p className="text-sm text-gray-500">
+                  <span className="font-semibold text-gray-900">{result.total}</span>{" "}
+                  ürün bulundu
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Suspense fallback={<div className="h-9 w-32 rounded-lg bg-gray-50" />}>
+                  <ProductViewControls />
+                </Suspense>
+                <Suspense fallback={<div className="h-9 w-48 rounded-lg bg-gray-50" />}>
+                  <SortSelect />
+                </Suspense>
+              </div>
             </div>
 
             {result.items.length === 0 ? (
@@ -143,7 +188,13 @@ export default async function ProductsPage({
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
+                <div
+                  className={
+                    view === "list"
+                      ? "flex flex-col gap-4"
+                      : "grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4"
+                  }
+                >
                   {result.items.map((product) => (
                     <ProductCard key={product.id} product={product} />
                   ))}
@@ -159,7 +210,6 @@ export default async function ProductsPage({
           </section>
         </div>
       </main>
-
     </div>
   );
 }

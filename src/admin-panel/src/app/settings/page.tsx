@@ -14,10 +14,16 @@ import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 /** Uzun metin girisi isteyen ayarlar. */
-const MULTILINE_KEYS = new Set(["site.description", "site.address"]);
+const MULTILINE_KEYS = new Set([
+  "site.description",
+  "site.address",
+  "seo.defaultDescription",
+  "commerce.installmentRates",
+  "commerce.transferAccounts",
+]);
 
 /** Acik/kapali secimi olan ayarlar. */
-const BOOLEAN_KEYS = new Set(["commerce.pricesIncludeVat"]);
+const BOOLEAN_KEYS = new Set(["commerce.pricesIncludeVat", "commerce.codEnabled"]);
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();

@@ -23,14 +23,19 @@ public class Banner : BaseEntity
     public string ImageUrl { get; set; } = default!;
     public string? LinkUrl { get; set; }
 
-    /// <summary>home-slider, home-strip, category-top gibi yerlesim adi.</summary>
+    /// <summary>home-slider, home-strip, category-top, mega-menu gibi yerlesim adi.</summary>
     public string Placement { get; set; } = "home-slider";
+
+    /// <summary>Mega menu tanitim karti icin bagli kategori (opsiyonel).</summary>
+    public Guid? CategoryId { get; set; }
 
     public int SortOrder { get; set; }
     public bool IsActive { get; set; } = true;
 
     public DateTime? StartsAt { get; set; }
     public DateTime? EndsAt { get; set; }
+
+    public Category? Category { get; set; }
 }
 
 /// <summary>Hakkimizda, mesafeli satis sozlesmesi gibi statik sayfalar.</summary>

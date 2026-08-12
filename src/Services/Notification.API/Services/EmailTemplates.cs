@@ -1,11 +1,113 @@
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Notification.API.Data;
+
 namespace Notification.API.Services;
 
+public interface IEmailTemplateService
+{
+    Task<(string Subject, string Body)?> TryRenderAsync(
+        string code,
+        IReadOnlyDictionary<string, string?> variables,
+        CancellationToken cancellationToken = default);
+}
+
+public class EmailTemplateService : IEmailTemplateService
+{
+    private readonly NotificationDbContext _context;
+    private readonly ILogger<EmailTemplateService> _logger;
+
+    public EmailTemplateService(NotificationDbContext context, ILogger<EmailTemplateService> logger)
+    {
+        _context = context;
+        _logger = logger;
+    }
+
+    public async Task<(string Subject, string Body)?> TryRenderAsync(
+        string code,
+        IReadOnlyDictionary<string, string?> variables,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var template = await _context.EmailTemplates
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Code == code && t.IsActive, cancellationToken);
+
+            if (template is null) return null;
+
+            return (
+                Replace(template.Subject, variables),
+                Replace(template.BodyHtml, variables));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "E-posta şablonu okunamadı: {Code}", code);
+            return null;
+        }
+    }
+
+    private static string Replace(string input, IReadOnlyDictionary<string, string?> variables)
+    {
+        var result = input;
+        foreach (var (key, value) in variables)
+            result = result.Replace("{{" + key + "}}", value ?? "", StringComparison.OrdinalIgnoreCase);
+        return result;
+    }
+}
+
 /// <summary>
-/// Basit HTML e-posta sablonlari. Icerik degisiklikleri tek yerde yapilir.
+/// Sabit şablonlar + DB seed kaynakları. {{Degisken}} yer tutucuları kullanır.
 /// </summary>
 public static class EmailTemplates
 {
-    public static (string Subject, string Body) PaymentSucceeded(Guid orderId) =>
+    public record SeedDef(string Code, string Name, string Subject, string BodyHtml, string[] Variables);
+
+    public static IReadOnlyList<SeedDef> SeedDefinitions()
+    {
+        var paymentSucceeded = PaymentSucceeded(Guid.Empty, "{{OrderNumber}}");
+        var paymentFailed = PaymentFailed(Guid.Empty, "{{Reason}}", "{{OrderNumber}}");
+        var shipped = OrderShipped(Guid.Empty, "{{TrackingNumber}}", "{{OrderNumber}}");
+        var confirm = ConfirmEmail("{{Link}}");
+        var reset = ResetPassword("{{Link}}");
+
+        // Seed içeriğinde GUID yerine placeholder kalsın
+        return new List<SeedDef>
+        {
+            new(
+                "PaymentSucceeded",
+                "Ödeme başarılı",
+                "Siparişiniz alındı — Yıldırım Store",
+                paymentSucceeded.Body.Replace(Guid.Empty.ToString(), "{{OrderId}}"),
+                ["OrderId", "OrderNumber"]),
+            new(
+                "PaymentFailed",
+                "Ödeme başarısız",
+                "Siparişiniz tamamlanamadı",
+                paymentFailed.Body.Replace(Guid.Empty.ToString(), "{{OrderId}}"),
+                ["OrderId", "OrderNumber", "Reason"]),
+            new(
+                "OrderShipped",
+                "Sipariş kargoda",
+                "Siparişiniz kargoya verildi",
+                shipped.Body.Replace(Guid.Empty.ToString(), "{{OrderId}}"),
+                ["OrderId", "OrderNumber", "TrackingNumber"]),
+            new(
+                "ConfirmEmail",
+                "E-posta doğrulama",
+                confirm.Subject,
+                confirm.Body,
+                ["Link"]),
+            new(
+                "ResetPassword",
+                "Şifre sıfırlama",
+                reset.Subject,
+                reset.Body,
+                ["Link"]),
+        };
+    }
+
+    public static (string Subject, string Body) PaymentSucceeded(Guid orderId, string? orderNumber = null) =>
     (
         "Siparişiniz alındı — Yıldırım Store",
         Wrap(
@@ -13,14 +115,14 @@ public static class EmailTemplates
             $@"<p>Merhaba,</p>
                <p>Ödemeniz başarıyla alındı. Siparişiniz hazırlanmaya başlandı.</p>
                <table style=""border-collapse:collapse;margin:16px 0"">
-                 <tr><td style=""padding:4px 12px 4px 0;color:#666"">Sipariş numarası</td><td style=""font-weight:600"">{orderId}</td></tr>
+                 <tr><td style=""padding:4px 12px 4px 0;color:#666"">Sipariş numarası</td><td style=""font-weight:600"">{DisplayOrderRef(orderId, orderNumber)}</td></tr>
                </table>
                <p>Sipariş durumunu hesabınızdaki <strong>Siparişlerim</strong> sayfasından takip edebilirsiniz.
                Kargoya verildiğinde e-posta ile bilgilendirileceksiniz.</p>
                <p style=""font-size:13px;color:#666"">Teslimat süresi ve iade koşulları için sitemizdeki yasal sayfaları inceleyebilirsiniz.</p>")
     );
 
-    public static (string Subject, string Body) PaymentFailed(Guid orderId, string? reason) =>
+    public static (string Subject, string Body) PaymentFailed(Guid orderId, string? reason, string? orderNumber = null) =>
     (
         "Siparişiniz tamamlanamadı",
         Wrap(
@@ -28,13 +130,13 @@ public static class EmailTemplates
             $@"<p>Merhaba,</p>
                <p>Maalesef ödemeniz alınamadığı için siparişiniz iptal edildi.</p>
                <table style=""border-collapse:collapse;margin:16px 0"">
-                 <tr><td style=""padding:4px 12px 4px 0;color:#666"">Sipariş numarası</td><td style=""font-weight:600"">{orderId}</td></tr>
+                 <tr><td style=""padding:4px 12px 4px 0;color:#666"">Sipariş numarası</td><td style=""font-weight:600"">{DisplayOrderRef(orderId, orderNumber)}</td></tr>
                  <tr><td style=""padding:4px 12px 4px 0;color:#666"">Sebep</td><td style=""font-weight:600"">{reason ?? "Belirtilmedi"}</td></tr>
                </table>
                <p>Kart bilgilerinizi kontrol edip tekrar deneyebilirsiniz.</p>")
     );
 
-    public static (string Subject, string Body) OrderShipped(Guid orderId, string? tracking) =>
+    public static (string Subject, string Body) OrderShipped(Guid orderId, string? tracking, string? orderNumber = null) =>
     (
         "Siparişiniz kargoya verildi",
         Wrap(
@@ -42,7 +144,7 @@ public static class EmailTemplates
             $@"<p>Merhaba,</p>
                <p>Siparişiniz kargoya teslim edildi.</p>
                <table style=""border-collapse:collapse;margin:16px 0"">
-                 <tr><td style=""padding:4px 12px 4px 0;color:#666"">Sipariş numarası</td><td style=""font-weight:600"">{orderId}</td></tr>
+                 <tr><td style=""padding:4px 12px 4px 0;color:#666"">Sipariş numarası</td><td style=""font-weight:600"">{DisplayOrderRef(orderId, orderNumber)}</td></tr>
                  <tr><td style=""padding:4px 12px 4px 0;color:#666"">Takip no</td><td style=""font-weight:600"">{tracking ?? "Yakında güncellenecek"}</td></tr>
                </table>
                <p>İyi günler dileriz.</p>")
@@ -71,6 +173,9 @@ public static class EmailTemplates
                <p>Bu talebi siz yapmadıysanız bu e-postayı yok sayabilirsiniz.</p>")
     );
 
+    private static string DisplayOrderRef(Guid orderId, string? orderNumber) =>
+        !string.IsNullOrWhiteSpace(orderNumber) ? orderNumber : orderId.ToString();
+
     private static string Wrap(string heading, string content) =>
         $@"<!DOCTYPE html>
 <html lang=""tr"">
@@ -83,4 +188,17 @@ public static class EmailTemplates
   </div>
 </body>
 </html>";
+
+    public static string[] ParseVariables(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return [];
+        try
+        {
+            return JsonSerializer.Deserialize<string[]>(json) ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
 }

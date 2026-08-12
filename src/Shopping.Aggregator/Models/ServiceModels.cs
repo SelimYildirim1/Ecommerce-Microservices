@@ -11,6 +11,9 @@ public class OrderDto
     public string OrderStatus { get; set; } = default!;
     public DateTime OrderDate { get; set; }
     public string? Description { get; set; }
+    public string? AdminNote { get; set; }
+    public string? OrderNumber { get; set; }
+    public string? TrackingNumber { get; set; }
 
     // Alici ve kirilim bilgileri (Order.API yeni alanlar; eski siparislerde bos/0)
     public string? FirstName { get; set; }
@@ -21,6 +24,7 @@ public class OrderDto
     public decimal DiscountAmount { get; set; }
     public string? CouponCode { get; set; }
     public decimal ShippingCost { get; set; }
+    public string? PaymentMethod { get; set; }
 
     public List<OrderItemDto> OrderItems { get; set; } = new();
 }

@@ -16,6 +16,8 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using System.Security.Claims;
 using System.Text;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -128,6 +130,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
+
+// Misafir siparis takibi icin basit rate limit
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("order-track", opt =>
+    {
+        opt.PermitLimit = 20;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueLimit = 0;
+    });
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+});
 
 // CORS - Next.js (http://localhost:3000) üzerinden gelen SignalR bağlantılarını kabul et
 builder.Services.AddCors(options =>
@@ -255,6 +269,7 @@ if (app.Environment.IsDevelopment())
 // CORS, auth'dan önce olmalı
 app.UseCors("CorsPolicy");
 
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

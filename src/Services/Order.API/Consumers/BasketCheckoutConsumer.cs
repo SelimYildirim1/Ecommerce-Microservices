@@ -1,5 +1,6 @@
 using MassTransit;
 using Core.Shared.Events;
+using Microsoft.EntityFrameworkCore;
 using Order.API.Data;
 using Order.API.Domain.AggregatesModel.OrderAggregate;
 using OrderEntity = Order.API.Entities.Order;
@@ -28,20 +29,37 @@ public class BasketCheckoutConsumer : IConsumer<BasketCheckoutEvent>
         _logger.LogInformation("Yeni sipariş mesajı geldi. Kullanıcı={UserName}", msg.UserName);
 
         var address = new Address(
-            street: msg.AddressLine,
-            city: "",
-            state: "",
-            country: "",
-            zipCode: ""
+            street: msg.AddressLine ?? string.Empty,
+            city: msg.City ?? string.Empty,
+            state: msg.State ?? string.Empty,
+            country: msg.Country ?? string.Empty,
+            zipCode: msg.ZipCode ?? string.Empty
         );
 
         var order = new OrderEntity(
             buyerId: msg.UserName,
             address: address,
-            description: ""
+            description: msg.OrderNote ?? ""
         );
 
+        order.SetGiftOptions(msg.GiftWrap, msg.GiftMessage);
+
         order.SetContact(msg.FirstName, msg.LastName, msg.EmailAddress);
+        order.SetInvoice(msg.InvoiceType, msg.TaxId, msg.TaxOffice, msg.CompanyName);
+        order.SetPaymentMethod(msg.PaymentMethod);
+        order.SetBillingAddress(
+            sameAsShipping: msg.BillingSameAsShipping ?? true,
+            addressLine: msg.BillingAddressLine,
+            city: msg.BillingCity,
+            state: msg.BillingState,
+            country: msg.BillingCountry,
+            zipCode: msg.BillingZipCode);
+
+        var orderNumber = !string.IsNullOrWhiteSpace(msg.OrderNumber)
+            ? msg.OrderNumber.Trim()
+            : await GenerateUniqueOrderNumberAsync(context.CancellationToken);
+        order.SetOrderNumber(orderNumber);
+        order.AddStatusHistory("Submitted", "Sipariş oluşturuldu");
 
         if (msg.BasketItems != null && msg.BasketItems.Count > 0)
         {
@@ -77,12 +95,14 @@ public class BasketCheckoutConsumer : IConsumer<BasketCheckoutEvent>
         _dbContext.Orders.Add(order);
         await _dbContext.SaveChangesAsync();
 
-        _logger.LogInformation("Sipariş kaydedildi. OrderId={OrderId}, ItemCount={Count}",
-            order.Id, order.OrderItems.Count);
+        _logger.LogInformation(
+            "Sipariş kaydedildi. OrderId={OrderId}, OrderNumber={OrderNumber}, ItemCount={Count}",
+            order.Id, order.OrderNumber, order.OrderItems.Count);
 
         var orderCreatedEvent = new OrderCreatedEvent
         {
             OrderId = order.Id,
+            OrderNumber = order.OrderNumber,
             BuyerId = order.BuyerId,
             Email = msg.EmailAddress,
             TotalPrice = order.TotalAmount,
@@ -101,6 +121,22 @@ public class BasketCheckoutConsumer : IConsumer<BasketCheckoutEvent>
         };
 
         await _publishEndpoint.Publish(orderCreatedEvent);
-        _logger.LogInformation("OrderCreatedEvent yayımlandı. OrderId={OrderId}.", order.Id);
+        _logger.LogInformation(
+            "OrderCreatedEvent yayımlandı. OrderId={OrderId}, OrderNumber={OrderNumber}.",
+            order.Id, order.OrderNumber);
+    }
+
+    private async Task<string> GenerateUniqueOrderNumberAsync(CancellationToken ct)
+    {
+        var prefix = $"YS-{DateTime.UtcNow:yyMMdd}-";
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            var candidate = prefix + Random.Shared.Next(0, 10000).ToString("D4");
+            var exists = await _dbContext.Orders.AnyAsync(o => o.OrderNumber == candidate, ct);
+            if (!exists) return candidate;
+        }
+
+        // Son çare: daha benzersiz sonek
+        return prefix + Random.Shared.Next(1000, 9999) + Random.Shared.Next(10, 99);
     }
 }

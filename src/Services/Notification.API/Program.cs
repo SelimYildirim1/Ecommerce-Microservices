@@ -1,6 +1,7 @@
-
 using MassTransit;
+using Microsoft.EntityFrameworkCore;
 using Notification.API.Consumers;
+using Notification.API.Data;
 using Notification.API.Services;
 using Serilog;
 using Prometheus;
@@ -11,12 +12,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Host.UseSerilog((context, config) =>
 {
-    config.ReadFrom.Configuration(context.Configuration); 
+    config.ReadFrom.Configuration(context.Configuration);
 });
 
-// -------------------------------------------------------
-// DISTRIBUTED TRACING (OpenTelemetry → Jaeger)
-// -------------------------------------------------------
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService("Notification.API"))
     .WithTracing(tracing =>
@@ -31,19 +29,22 @@ builder.Services.AddOpenTelemetry()
             });
     });
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+builder.Services.AddControllers();
 
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? "Server=localhost;Port=5432;Database=NotificationDb;User Id=postgres;Password=postgres;";
 
-// E-posta gonderimi (gelistirmede MailHog, uretimde gercek SMTP)
+builder.Services.AddDbContext<NotificationDbContext>(options =>
+    options.UseNpgsql(connectionString));
+
 var smtpOptions = builder.Configuration
     .GetSection(SmtpOptions.SectionName)
     .Get<SmtpOptions>() ?? new SmtpOptions();
 
 builder.Services.AddSingleton(smtpOptions);
 builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+builder.Services.AddScoped<IEmailTemplateService, EmailTemplateService>();
 
-// MassTransit Setup
 builder.Services.AddMassTransit(config =>
 {
     config.AddConsumer<PaymentSucceededConsumer>();
@@ -53,7 +54,7 @@ builder.Services.AddMassTransit(config =>
 
     config.UsingRabbitMq((context, _config) =>
     {
-        var rabbitMqHost = builder.Configuration["RabbitMQ:HostName"] 
+        var rabbitMqHost = builder.Configuration["RabbitMQ:HostName"]
             ?? builder.Configuration["EventBusSettings:HostAddress"]?.Replace("amqp://guest:guest@", "").Split(':')[0]
             ?? "localhost";
 
@@ -63,7 +64,6 @@ builder.Services.AddMassTransit(config =>
             h.Password("guest");
         });
 
-        // 👇 GLOBAL MESAJ TEKRAR (RETRY) POLİTİKASI
         _config.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(5)));
 
         _config.ReceiveEndpoint("notification-payment-succeeded-queue", e =>
@@ -90,9 +90,17 @@ builder.Services.AddMassTransit(config =>
 
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+    await NotificationDbSeeder.SeedAsync(db);
+}
+
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "Notification.API" }));
 
-app.UseHttpMetrics(); // Prometheus HTTP metrikleri
-app.MapMetrics();     // /metrics endpoint'i
+app.MapControllers();
+
+app.UseHttpMetrics();
+app.MapMetrics();
 
 app.Run();

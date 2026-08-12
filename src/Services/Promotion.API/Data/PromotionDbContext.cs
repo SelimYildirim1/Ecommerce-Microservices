@@ -12,6 +12,8 @@ public class PromotionDbContext : DbContext
     public DbSet<Coupon> Coupons { get; set; }
     public DbSet<CouponUsage> CouponUsages { get; set; }
     public DbSet<Campaign> Campaigns { get; set; }
+    public DbSet<LoyaltyAccount> LoyaltyAccounts { get; set; }
+    public DbSet<LoyaltyTransaction> LoyaltyTransactions { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -38,6 +40,22 @@ public class PromotionDbContext : DbContext
             entity.Property(u => u.OrderId).HasMaxLength(100);
             entity.Property(u => u.DiscountAmount).HasColumnType("numeric(18,2)");
             entity.HasIndex(u => new { u.CouponId, u.UserName });
+        });
+
+        modelBuilder.Entity<LoyaltyAccount>(entity =>
+        {
+            entity.Property(a => a.UserId).HasMaxLength(200).IsRequired();
+            entity.HasIndex(a => a.UserId).IsUnique();
+            entity.HasMany(a => a.Transactions)
+                  .WithOne(t => t.Account)
+                  .HasForeignKey(t => t.LoyaltyAccountId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<LoyaltyTransaction>(entity =>
+        {
+            entity.Property(t => t.Description).HasMaxLength(500);
+            entity.HasIndex(t => t.LoyaltyAccountId);
         });
 
         modelBuilder.Entity<Campaign>(entity =>

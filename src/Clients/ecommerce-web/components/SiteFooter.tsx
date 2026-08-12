@@ -1,22 +1,40 @@
 import Link from "next/link";
 import { Mail, MapPin, Phone } from "lucide-react";
-import { getFooterPages, getSiteSettings } from "@/lib/cms";
-
-const SHORTCUTS = [
-  { href: "/products", label: "Tüm Ürünler" },
-  { href: "/products?sort=Newest", label: "Yeni Gelenler" },
-  { href: "/products?sort=Rating", label: "Çok Beğenilenler" },
-  { href: "/products?sort=PriceAsc", label: "Uygun Fiyatlılar" },
-];
+import { getTranslations } from "next-intl/server";
+import { getFooterPages, getNavMenu, getSiteSettings } from "@/lib/cms";
+import NewsletterForm from "@/components/NewsletterForm";
 
 /** Alt menu ve iletisim bilgileri panelden yonetilir. */
 export default async function SiteFooter() {
-  const [pages, settings] = await Promise.all([getFooterPages(), getSiteSettings()]);
+  const t = await getTranslations("Footer");
+  const [pages, settings, footerMenu] = await Promise.all([
+    getFooterPages(),
+    getSiteSettings(),
+    getNavMenu("footer"),
+  ]);
 
   const siteName = settings["site.name"] || "Yıldırım Store";
   const email = settings["site.email"];
   const phone = settings["site.phone"];
   const address = settings["site.address"];
+
+  const shortcuts =
+    footerMenu?.items && footerMenu.items.length > 0
+      ? footerMenu.items.map((item) => ({
+          href: item.url || "#",
+          label: item.label,
+        }))
+      : [
+          { href: "/products", label: t("allProducts") },
+          { href: "/products?sort=Newest", label: t("newArrivals") },
+          { href: "/products?sort=Rating", label: t("topRated") },
+          { href: "/products?sort=PriceAsc", label: t("affordable") },
+          { href: "/karsilastir", label: t("compare") },
+          { href: "/blog", label: t("blog") },
+          { href: "/siparis-takip", label: t("orderTracking") },
+          { href: "/sss", label: t("faq") },
+          { href: "/iletisim", label: t("contactPage") },
+        ];
 
   const socials = [
     { label: "Instagram", href: settings["social.instagram"] },
@@ -57,12 +75,14 @@ export default async function SiteFooter() {
                 ))}
               </div>
             )}
+
+            <NewsletterForm />
           </div>
 
           <div>
-            <p className="mb-4 text-sm font-semibold text-gray-900">Alışveriş</p>
+            <p className="mb-4 text-sm font-semibold text-gray-900">{t("shopping")}</p>
             <ul className="space-y-3">
-              {SHORTCUTS.map((item) => (
+              {shortcuts.map((item) => (
                 <li key={item.label}>
                   <Link
                     href={item.href}
@@ -77,7 +97,7 @@ export default async function SiteFooter() {
 
           {pages.length > 0 && (
             <div>
-              <p className="mb-4 text-sm font-semibold text-gray-900">Kurumsal</p>
+              <p className="mb-4 text-sm font-semibold text-gray-900">{t("corporate")}</p>
               <ul className="space-y-3">
                 {pages.map((page) => (
                   <li key={page.slug}>
@@ -94,7 +114,7 @@ export default async function SiteFooter() {
           )}
 
           <div>
-            <p className="mb-4 text-sm font-semibold text-gray-900">İletişim</p>
+            <p className="mb-4 text-sm font-semibold text-gray-900">{t("contact")}</p>
             <ul className="space-y-3 text-sm text-gray-500">
               {phone && (
                 <li className="flex items-center gap-2">
@@ -119,7 +139,7 @@ export default async function SiteFooter() {
         </div>
 
         <p className="mt-12 border-t border-gray-100 pt-6 text-center text-xs text-gray-400">
-          © {new Date().getFullYear()} {siteName}. Tüm hakları saklıdır.
+          © {new Date().getFullYear()} {siteName}. {t("rights")}
         </p>
       </div>
     </footer>

@@ -4,7 +4,9 @@ using Microsoft.EntityFrameworkCore;
 using Core.Shared.Behaviors;
 using FluentValidation;
 using MassTransit;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using RabbitMQ.Client;
 using HealthChecks.UI.Client;
@@ -12,6 +14,8 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Prometheus;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using System.Security.Claims;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -66,7 +70,11 @@ builder.Services.AddOpenTelemetry()
 
 // 1. Controller desteğini ekle
 // Enum'lar panelde okunabilir olsun diye string olarak serialize edilir
-builder.Services.AddControllers()
+builder.Services.AddScoped<Catalog.API.Filters.AuditActionFilter>();
+builder.Services.AddControllers(options =>
+    {
+        options.Filters.AddService<Catalog.API.Filters.AuditActionFilter>();
+    })
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.Converters.Add(
@@ -79,6 +87,40 @@ builder.Services.AddScoped<Catalog.API.Services.StockLedger>();
 // 2. Swagger desteğini ekle (API dokümantasyonu)
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// JWT — Identity ile aynı secret (env: JwtSettings__Secret veya Jwt__SecretKey)
+var jwtSecret = builder.Configuration["JwtSettings:Secret"]
+    ?? builder.Configuration["Jwt:SecretKey"]
+    ?? "bu_benim_cok_gizli_sifrem_ecommerce_project_secret_key_12345";
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero,
+            RoleClaimType = ClaimTypes.Role
+        };
+    });
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy =>
+        policy.RequireRole("Admin"));
+    options.AddPolicy("EditorOrAdmin", policy =>
+        policy.RequireRole("Admin", "Editor"));
+    options.AddPolicy("SupportOrAdmin", policy =>
+        policy.RequireRole("Admin", "Support"));
+    options.AddPolicy("WarehouseOrAdmin", policy =>
+        policy.RequireRole("Admin", "Warehouse"));
+    options.AddPolicy("Staff", policy =>
+        policy.RequireRole("Admin", "Editor", "Support", "Warehouse"));
+});
+builder.Services.AddHttpClient();
 
 // 3. Veritabanı Servisini (PostgreSQL) ekle
 builder.Services.AddDbContext<CatalogDbContext>(options =>
@@ -189,6 +231,7 @@ var webRootPath = app.Environment.WebRootPath
 Directory.CreateDirectory(Path.Combine(webRootPath, "uploads"));
 app.UseStaticFiles();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

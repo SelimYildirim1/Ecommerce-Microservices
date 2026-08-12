@@ -9,6 +9,7 @@ import { notify, parseApiError } from "@/lib/feedback";
 export default function LoginPage() {
   const { login } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -20,7 +21,7 @@ export default function LoginPage() {
       const res = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, rememberMe }),
       });
 
       if (res.ok) {
@@ -33,8 +34,7 @@ export default function LoginPage() {
           parseApiError(text, "Giriş başarısız. E-posta veya şifreyi kontrol edin."),
         );
       }
-    } catch (error) {
-      console.error(error);
+    } catch {
       notify.error("Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin.");
     } finally {
       setLoading(false);
@@ -94,6 +94,16 @@ export default function LoginPage() {
                 </Link>
               </div>
             </div>
+
+            <label className="flex items-center gap-2 text-sm text-gray-600">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="rounded border-border"
+              />
+              Beni hatırla
+            </label>
 
             <button
               type="submit"

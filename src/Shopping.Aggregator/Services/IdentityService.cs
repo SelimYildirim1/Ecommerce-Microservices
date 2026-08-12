@@ -28,14 +28,25 @@ public class IdentityService : IIdentityService
 
     public async Task<List<UserDto>> GetAllUsersAsync(string? bearerToken = null)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/auth/users");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/auth/users?page=1&pageSize=500");
         ApplyAuth(request, bearerToken);
         using var response = await _httpClient.SendAsync(request);
         if (!response.IsSuccessStatusCode)
             return new List<UserDto>();
 
-        var result = await response.Content.ReadFromJsonAsync<List<UserDto>>();
-        return result ?? new List<UserDto>();
+        var json = await response.Content.ReadAsStringAsync();
+        if (string.IsNullOrWhiteSpace(json)) return new List<UserDto>();
+
+        using var doc = JsonDocument.Parse(json);
+        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+
+        if (doc.RootElement.ValueKind == JsonValueKind.Array)
+            return JsonSerializer.Deserialize<List<UserDto>>(json, options) ?? new List<UserDto>();
+
+        if (doc.RootElement.TryGetProperty("items", out var items))
+            return JsonSerializer.Deserialize<List<UserDto>>(items.GetRawText(), options) ?? new List<UserDto>();
+
+        return new List<UserDto>();
     }
 
     public Task<ProxyResult> GetRawAsync(string path, string? bearerToken = null)

@@ -22,6 +22,32 @@ public class BasketCheckout
 
     /// <summary>Secilen kargo firmasi. Bos ise kargo ucreti hesaplanmaz.</summary>
     public Guid? ShippingCarrierId { get; set; }
+
+    // Adres detayi (opsiyonel)
+    public string? City { get; set; }
+    public string? State { get; set; }
+    public string? Country { get; set; }
+    public string? ZipCode { get; set; }
+
+    // Fatura (opsiyonel)
+    public string? InvoiceType { get; set; }
+    public string? TaxId { get; set; }
+    public string? TaxOffice { get; set; }
+    public string? CompanyName { get; set; }
+
+    public bool? BillingSameAsShipping { get; set; }
+    public string? BillingAddressLine { get; set; }
+    public string? BillingCity { get; set; }
+    public string? BillingState { get; set; }
+    public string? BillingCountry { get; set; }
+    public string? BillingZipCode { get; set; }
+
+    /// <summary>card | bank_transfer | cash_on_delivery</summary>
+    public string? PaymentMethod { get; set; }
+
+    public string? OrderNote { get; set; }
+    public bool GiftWrap { get; set; }
+    public string? GiftMessage { get; set; }
 }
 
 /// <summary>Sepet ozeti istegi.</summary>

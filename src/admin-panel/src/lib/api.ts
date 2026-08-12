@@ -1,23 +1,45 @@
-import { clearToken, getToken } from "@/lib/auth";
+import { clearToken, ensureFreshToken, getToken, refreshToken } from "@/lib/auth";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001/aggregator/admin";
 
+const AUTH_API =
+  process.env.NEXT_PUBLIC_AUTH_URL || "http://localhost:8001/auth";
+
+async function handleUnauthorized(): Promise<string | null> {
+  const refreshed = await refreshToken();
+  if (refreshed) return refreshed;
+  clearToken();
+  if (typeof window !== "undefined") window.location.href = "/admin/login";
+  return null;
+}
+
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const token = getToken();
+  let token = await ensureFreshToken();
 
-  const res = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options?.headers,
-    },
-  });
+  const doFetch = (bearer: string | null) =>
+    fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
+        ...options?.headers,
+      },
+    });
 
-  if (res.status === 401 || res.status === 403) {
+  let res = await doFetch(token);
+
+  if (res.status === 401) {
+    const refreshed = await handleUnauthorized();
+    if (!refreshed) {
+      throw new Error("Oturum süresi doldu, lütfen tekrar giriş yapın.");
+    }
+    res = await doFetch(refreshed);
+  }
+
+  if (res.status === 403) {
     clearToken();
-    if (typeof window !== "undefined") window.location.href = "/login";
+    if (typeof window !== "undefined") window.location.href = "/admin/login";
     throw new Error("Oturum süresi doldu, lütfen tekrar giriş yapın.");
   }
 
@@ -34,27 +56,41 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
 // --- Medya (Catalog.API statik dosya sunumu) ---
 const MEDIA_API = process.env.NEXT_PUBLIC_MEDIA_URL || "http://localhost:8001/media";
 
-/** Gorsel URL'i goreli ise (/uploads/...) sunucu adresiyle tamamlar. */
+/** Gorsel URL'i goreli ise (/uploads/..., /img/...) gateway kokune tamamlar. */
 export function resolveImageUrl(url?: string | null): string {
   if (!url) return "";
-  if (/^(https?:)?\/\//.test(url) || url.startsWith("data:")) return url;
-  return `${MEDIA_API.replace(/\/media$/, "")}${url}`;
+  const trimmed = url.trim();
+  if (!trimmed) return "";
+  if (/^(https?:)?\/\//.test(trimmed) || trimmed.startsWith("data:")) return trimmed;
+  const gatewayOrigin = MEDIA_API.replace(/\/media\/?$/, "");
+  return trimmed.startsWith("/")
+    ? `${gatewayOrigin}${trimmed}`
+    : `${gatewayOrigin}/${trimmed}`;
 }
 
 export async function uploadImage(file: File): Promise<UploadResult> {
-  const token = getToken();
+  const token = await ensureFreshToken();
   const formData = new FormData();
   formData.append("file", file);
 
-  const res = await fetch(`${MEDIA_API}/upload`, {
-    method: "POST",
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    body: formData,
-  });
+  const doUpload = (bearer: string | null) =>
+    fetch(`${MEDIA_API}/upload`, {
+      method: "POST",
+      headers: bearer ? { Authorization: `Bearer ${bearer}` } : undefined,
+      body: formData,
+    });
 
-  if (res.status === 401 || res.status === 403) {
+  let res = await doUpload(token);
+
+  if (res.status === 401) {
+    const refreshed = await handleUnauthorized();
+    if (!refreshed) throw new Error("Oturum süresi doldu, lütfen tekrar giriş yapın.");
+    res = await doUpload(refreshed);
+  }
+
+  if (res.status === 403) {
     clearToken();
-    if (typeof window !== "undefined") window.location.href = "/login";
+    if (typeof window !== "undefined") window.location.href = "/admin/login";
     throw new Error("Oturum süresi doldu, lütfen tekrar giriş yapın.");
   }
 
@@ -76,10 +112,97 @@ export interface UploadResult {
 export const getDashboardSummary = () => fetchApi<DashboardSummary>("/dashboard");
 
 // Orders
-export const getOrders = () => fetchApi<Order[]>("/orders");
+export interface OrdersQuery {
+  from?: string;
+  to?: string;
+  status?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PagedOrders {
+  items: Order[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+}
+
+function buildOrdersQuery(params?: OrdersQuery): string {
+  if (!params) return "";
+  const qs = new URLSearchParams();
+  if (params.from) qs.set("from", params.from);
+  if (params.to) qs.set("to", params.to);
+  if (params.status) qs.set("status", params.status);
+  if (params.search) qs.set("search", params.search);
+  if (params.page != null) qs.set("page", String(params.page));
+  if (params.pageSize != null) qs.set("pageSize", String(params.pageSize));
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+}
+
+export const getOrders = (params?: OrdersQuery) => {
+  const query = buildOrdersQuery(params);
+  if (params?.page != null) {
+    return fetchApi<PagedOrders>(`/orders${query}`);
+  }
+  return fetchApi<Order[]>(`/orders${query}`);
+};
+
 export const getOrderDetail = (id: string) => fetchApi<Order>(`/orders/${id}`);
-export const updateOrderStatus = (id: string, status: string) =>
-  fetchApi(`/orders/${id}/status`, { method: "PUT", body: JSON.stringify({ status }) });
+
+export const updateOrderStatus = (
+  id: string,
+  status: string,
+  trackingNumber?: string | null,
+) =>
+  fetchApi(`/orders/${id}/status`, {
+    method: "PUT",
+    body: JSON.stringify({
+      status,
+      ...(trackingNumber ? { trackingNumber } : {}),
+    }),
+  });
+
+export const updateOrderAdminNote = (id: string, adminNote: string | null) =>
+  fetchApi<{ id: string; adminNote?: string | null }>(`/orders/${id}/note`, {
+    method: "PUT",
+    body: JSON.stringify({ adminNote }),
+  });
+
+export const createManualOrder = (data: CreateManualOrderPayload) =>
+  fetchApi<Order>("/orders/manual", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export async function exportOrdersCsv(params?: OrdersQuery): Promise<Blob> {
+  const token = getToken();
+  const res = await fetch(`${API_BASE}/orders/export${buildOrdersQuery(params)}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (res.status === 401 || res.status === 403) {
+    clearToken();
+    if (typeof window !== "undefined") window.location.href = "/admin/login";
+    throw new Error("Oturum süresi doldu, lütfen tekrar giriş yapın.");
+  }
+  if (!res.ok) throw new Error(await res.text().catch(() => "CSV indirilemedi"));
+  return res.blob();
+}
+
+export async function downloadOrderInvoice(id: string): Promise<Blob> {
+  const token = getToken();
+  const res = await fetch(`${API_BASE}/orders/${id}/invoice.pdf`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (res.status === 401 || res.status === 403) {
+    clearToken();
+    if (typeof window !== "undefined") window.location.href = "/admin/login";
+    throw new Error("Oturum süresi doldu, lütfen tekrar giriş yapın.");
+  }
+  if (!res.ok) throw new Error(await res.text().catch(() => "Fatura indirilemedi"));
+  return res.blob();
+}
 
 export const cancelOrder = (id: string, reason?: string) =>
   fetchApi<{ id: string; orderStatus: string }>(`/orders/${id}/cancel`, {
@@ -112,8 +235,13 @@ export const refundReturn = (id: string, data: ResolveReturnPayload) =>
   });
 
 // Customers
-export const getCustomers = (search?: string) =>
-  fetchApi<Customer[]>(`/customers${search ? `?search=${encodeURIComponent(search)}` : ""}`);
+export const getCustomers = (search?: string, page = 1, pageSize = 50) => {
+  const params = new URLSearchParams();
+  if (search) params.set("search", search);
+  params.set("page", String(page));
+  params.set("pageSize", String(pageSize));
+  return fetchApi<CustomerPage>(`/customers?${params.toString()}`);
+};
 
 export const getCustomer = (id: string) => fetchApi<CustomerDetail>(`/customers/${id}`);
 
@@ -191,6 +319,14 @@ export const removeCategoryAttribute = (categoryId: string, attributeId: string)
     method: "DELETE",
   });
 
+export const reorderCategories = (
+  items: { id: string; sortOrder: number; parentId?: string | null; clearParent?: boolean }[],
+) =>
+  fetchApi<{ updated: number }>("/categories/reorder", {
+    method: "POST",
+    body: JSON.stringify({ items }),
+  });
+
 // Attributes
 export const getAttributes = () => fetchApi<ProductAttribute[]>("/attributes");
 
@@ -237,20 +373,31 @@ const CATALOG_ADMIN_API =
   process.env.NEXT_PUBLIC_CATALOG_ADMIN_URL || `${GATEWAY_BASE}/catalog/admin`;
 
 async function fetchAt<T>(base: string, endpoint: string, options?: RequestInit): Promise<T> {
-  const token = getToken();
+  let token = await ensureFreshToken();
 
-  const res = await fetch(`${base}${endpoint}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options?.headers,
-    },
-  });
+  const doFetch = (bearer: string | null) =>
+    fetch(`${base}${endpoint}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
+        ...options?.headers,
+      },
+    });
 
-  if (res.status === 401 || res.status === 403) {
+  let res = await doFetch(token);
+
+  if (res.status === 401) {
+    const refreshed = await handleUnauthorized();
+    if (!refreshed) {
+      throw new Error("Oturum süresi doldu, lütfen tekrar giriş yapın.");
+    }
+    res = await doFetch(refreshed);
+  }
+
+  if (res.status === 403) {
     clearToken();
-    if (typeof window !== "undefined") window.location.href = "/login";
+    if (typeof window !== "undefined") window.location.href = "/admin/login";
     throw new Error("Oturum süresi doldu, lütfen tekrar giriş yapın.");
   }
 
@@ -262,6 +409,65 @@ async function fetchAt<T>(base: string, endpoint: string, options?: RequestInit)
   if (res.status === 204) return undefined as T;
 
   return res.json();
+}
+
+// --- Kullanıcı / rol yönetimi (Identity.API) ---
+export const getAuthRoles = () => fetchAt<string[]>(AUTH_API, "/roles");
+
+export const getUserRoles = (userId: string) =>
+  fetchAt<string[]>(AUTH_API, `/users/${userId}/roles`);
+
+export const assignUserRole = (userId: string, role: string) =>
+  fetchAt<{ userId: string; role: string }>(AUTH_API, `/users/${userId}/roles`, {
+    method: "POST",
+    body: JSON.stringify({ role }),
+  });
+
+export const removeUserRole = (userId: string, role: string) =>
+  fetchAt<void>(AUTH_API, `/users/${userId}/roles/${encodeURIComponent(role)}`, {
+    method: "DELETE",
+  });
+
+// --- Denetim kayıtları (Catalog.API) ---
+export const getAuditLogs = (params?: {
+  page?: number;
+  pageSize?: number;
+  userId?: string;
+  entityType?: string;
+  action?: string;
+}) => {
+  const query = new URLSearchParams();
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.pageSize) query.set("pageSize", String(params.pageSize));
+  if (params?.userId) query.set("userId", params.userId);
+  if (params?.entityType) query.set("entityType", params.entityType);
+  if (params?.action) query.set("action", params.action);
+  const suffix = query.toString();
+  return fetchAt<AuditLogPage>(
+    CATALOG_ADMIN_API,
+    `/audit-logs${suffix ? `?${suffix}` : ""}`,
+  );
+};
+
+export interface AuditLogEntry {
+  id: string;
+  userId: string;
+  userName?: string | null;
+  action: string;
+  entityType?: string | null;
+  entityId?: string | null;
+  oldValues?: string | null;
+  newValues?: string | null;
+  ipAddress?: string | null;
+  createdAt: string;
+}
+
+export interface AuditLogPage {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  items: AuditLogEntry[];
 }
 
 // Coupons
@@ -377,6 +583,36 @@ export const moderateReview = (
 export const deleteReview = (id: string) =>
   fetchAt<void>(CATALOG_ADMIN_API, `/reviews/${id}`, { method: "DELETE" });
 
+// Product Q&A
+export const getProductQuestions = (params?: {
+  approved?: boolean;
+  unanswered?: boolean;
+}) => {
+  const query = new URLSearchParams();
+  if (params?.approved !== undefined) query.set("approved", String(params.approved));
+  if (params?.unanswered) query.set("unanswered", "true");
+  const suffix = query.toString();
+  return fetchAt<AdminProductQuestion[]>(
+    CATALOG_ADMIN_API,
+    `/questions${suffix ? `?${suffix}` : ""}`,
+  );
+};
+
+export const answerProductQuestion = (id: string, answer: string) =>
+  fetchAt<void>(CATALOG_ADMIN_API, `/questions/${id}/answer`, {
+    method: "PUT",
+    body: JSON.stringify({ answer }),
+  });
+
+export const moderateProductQuestion = (id: string, isApproved: boolean) =>
+  fetchAt<void>(CATALOG_ADMIN_API, `/questions/${id}/moderate`, {
+    method: "PUT",
+    body: JSON.stringify({ isApproved }),
+  });
+
+export const deleteProductQuestion = (id: string) =>
+  fetchAt<void>(CATALOG_ADMIN_API, `/questions/${id}`, { method: "DELETE" });
+
 // --- Stok (Catalog.API) ---
 export const getStockSummary = (lowStockOnly = false) =>
   fetchAt<StockSummary>(CATALOG_ADMIN_API, `/stock/summary?lowStockOnly=${lowStockOnly}`);
@@ -451,6 +687,670 @@ export const updateStaticPage = (id: string, data: StaticPagePayload) =>
 export const deleteStaticPage = (id: string) =>
   fetchAt<void>(CATALOG_ADMIN_API, `/cms/pages/${id}`, { method: "DELETE" });
 
+// --- Blog ---
+export const getBlogPosts = (params?: { q?: string; status?: string }) => {
+  const qs = new URLSearchParams();
+  if (params?.q) qs.set("q", params.q);
+  if (params?.status) qs.set("status", params.status);
+  const suffix = qs.toString() ? `?${qs}` : "";
+  return fetchAt<AdminBlogPost[]>(CATALOG_ADMIN_API, `/blog/posts${suffix}`);
+};
+
+export const getBlogPost = (id: string) =>
+  fetchAt<AdminBlogPostDetail>(CATALOG_ADMIN_API, `/blog/posts/${id}`);
+
+export const createBlogPost = (data: BlogPostPayload) =>
+  fetchAt<{ id: string; slug: string }>(CATALOG_ADMIN_API, "/blog/posts", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const updateBlogPost = (id: string, data: BlogPostPayload) =>
+  fetchAt<{ id: string; slug: string }>(CATALOG_ADMIN_API, `/blog/posts/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+
+export const deleteBlogPost = (id: string) =>
+  fetchAt<void>(CATALOG_ADMIN_API, `/blog/posts/${id}`, { method: "DELETE" });
+
+export const bulkPublishBlogPosts = (ids: string[]) =>
+  fetchAt<{ count: number }>(CATALOG_ADMIN_API, "/blog/posts/publish", {
+    method: "POST",
+    body: JSON.stringify(ids),
+  });
+
+export const getBlogCategories = () =>
+  fetchAt<AdminBlogCategory[]>(CATALOG_ADMIN_API, "/blog/categories");
+
+export const createBlogCategory = (data: { name: string; slug?: string; description?: string; sortOrder?: number }) =>
+  fetchAt<AdminBlogCategory>(CATALOG_ADMIN_API, "/blog/categories", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const updateBlogCategory = (
+  id: string,
+  data: { name: string; slug?: string; description?: string; sortOrder?: number },
+) =>
+  fetchAt<AdminBlogCategory>(CATALOG_ADMIN_API, `/blog/categories/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+
+export const deleteBlogCategory = (id: string) =>
+  fetchAt<void>(CATALOG_ADMIN_API, `/blog/categories/${id}`, { method: "DELETE" });
+
+export const getBlogTags = () =>
+  fetchAt<AdminBlogTag[]>(CATALOG_ADMIN_API, "/blog/tags");
+
+export const createBlogTag = (data: { name: string; slug?: string }) =>
+  fetchAt<AdminBlogTag>(CATALOG_ADMIN_API, "/blog/tags", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const deleteBlogTag = (id: string) =>
+  fetchAt<void>(CATALOG_ADMIN_API, `/blog/tags/${id}`, { method: "DELETE" });
+
+// --- Menüler ---
+
+export interface NavMenuItem {
+  id: string;
+  navMenuId: string;
+  parentId?: string | null;
+  label: string;
+  url?: string | null;
+  linkType: string;
+  referenceId?: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  openInNewTab: boolean;
+  children?: NavMenuItem[];
+}
+
+export interface NavMenu {
+  id: string;
+  name: string;
+  location: string;
+  isActive: boolean;
+  items: NavMenuItem[];
+  itemTree?: NavMenuItem[];
+}
+
+export const getNavMenus = () =>
+  fetchAt<NavMenu[]>(CATALOG_ADMIN_API, "/cms/menus");
+
+export const createNavMenu = (data: { name: string; location: string; isActive?: boolean }) =>
+  fetchAt<NavMenu>(CATALOG_ADMIN_API, "/cms/menus", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const updateNavMenu = (
+  id: string,
+  data: { name: string; location: string; isActive?: boolean },
+) =>
+  fetchAt<NavMenu>(CATALOG_ADMIN_API, `/cms/menus/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+
+export const deleteNavMenu = (id: string) =>
+  fetchAt<void>(CATALOG_ADMIN_API, `/cms/menus/${id}`, { method: "DELETE" });
+
+export const createNavMenuItem = (
+  menuId: string,
+  data: {
+    label: string;
+    url?: string | null;
+    linkType?: string;
+    parentId?: string | null;
+    referenceId?: string | null;
+    sortOrder: number;
+    isActive?: boolean;
+    openInNewTab?: boolean;
+  },
+) =>
+  fetchAt<NavMenuItem>(CATALOG_ADMIN_API, `/cms/menus/${menuId}/items`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const updateNavMenuItem = (
+  itemId: string,
+  data: {
+    label: string;
+    url?: string | null;
+    linkType?: string;
+    parentId?: string | null;
+    referenceId?: string | null;
+    sortOrder: number;
+    isActive?: boolean;
+    openInNewTab?: boolean;
+  },
+) =>
+  fetchAt<NavMenuItem>(CATALOG_ADMIN_API, `/cms/menus/items/${itemId}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+
+export const deleteNavMenuItem = (itemId: string) =>
+  fetchAt<void>(CATALOG_ADMIN_API, `/cms/menus/items/${itemId}`, { method: "DELETE" });
+
+export const reorderNavMenuItems = (
+  menuId: string,
+  items: { id: string; sortOrder: number; parentId?: string | null; clearParent?: boolean }[],
+) =>
+  fetchAt<{ updated: number }>(CATALOG_ADMIN_API, `/cms/menus/${menuId}/items/reorder`, {
+    method: "POST",
+    body: JSON.stringify({ items }),
+  });
+
+// --- E-posta şablonları (Notification.API) ---
+
+const NOTIFICATION_ADMIN_API =
+  process.env.NEXT_PUBLIC_NOTIFICATION_ADMIN_URL || `${GATEWAY_BASE}/notification/admin`;
+
+export interface EmailTemplate {
+  id: string;
+  code: string;
+  name: string;
+  subject: string;
+  bodyHtml: string;
+  variables: string[];
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export const getEmailTemplates = () =>
+  fetchAt<EmailTemplate[]>(NOTIFICATION_ADMIN_API, "/email-templates");
+
+export const updateEmailTemplate = (
+  id: string,
+  data: {
+    name: string;
+    subject: string;
+    bodyHtml: string;
+    variables?: string[];
+    isActive?: boolean;
+  },
+) =>
+  fetchAt<EmailTemplate>(NOTIFICATION_ADMIN_API, `/email-templates/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+
+export const previewEmailTemplate = (
+  id: string,
+  variables: Record<string, string>,
+) =>
+  fetchAt<{ subject: string; bodyHtml: string }>(
+    NOTIFICATION_ADMIN_API,
+    `/email-templates/${id}/preview`,
+    { method: "POST", body: JSON.stringify({ variables }) },
+  );
+
+// --- Müşteri CRM ---
+
+export interface CustomerSegment {
+  id: string;
+  name: string;
+  description?: string | null;
+  color?: string | null;
+  memberCount?: number;
+}
+
+export interface CustomerNote {
+  id: string;
+  userId: string;
+  note: string;
+  createdByUserId?: string | null;
+  createdByName?: string | null;
+  createdAt: string;
+}
+
+export const getCustomerSegments = () =>
+  fetchAt<CustomerSegment[]>(CATALOG_ADMIN_API, "/customers/segments");
+
+export const createCustomerSegment = (data: {
+  name: string;
+  description?: string;
+  color?: string;
+}) =>
+  fetchAt<CustomerSegment>(CATALOG_ADMIN_API, "/customers/segments", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const deleteCustomerSegment = (id: string) =>
+  fetchAt<void>(CATALOG_ADMIN_API, `/customers/segments/${id}`, { method: "DELETE" });
+
+export const assignCustomerSegment = (segmentId: string, userId: string) =>
+  fetchAt<{ assigned: boolean }>(CATALOG_ADMIN_API, `/customers/segments/${segmentId}/members`, {
+    method: "POST",
+    body: JSON.stringify({ userId }),
+  });
+
+export const getCustomerNotes = (userId: string) =>
+  fetchAt<CustomerNote[]>(CATALOG_ADMIN_API, `/customers/${userId}/notes`);
+
+export const createCustomerNote = (data: {
+  userId: string;
+  note: string;
+  createdByUserId?: string;
+  createdByName?: string;
+}) =>
+  fetchAt<CustomerNote>(CATALOG_ADMIN_API, "/customers/notes", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const deleteCustomerNote = (id: string) =>
+  fetchAt<void>(CATALOG_ADMIN_API, `/customers/notes/${id}`, { method: "DELETE" });
+
+export const getBlogComments = (approved?: boolean) => {
+  const qs =
+    approved === undefined ? "" : `?approved=${approved ? "true" : "false"}`;
+  return fetchAt<AdminBlogComment[]>(CATALOG_ADMIN_API, `/blog/comments${qs}`);
+};
+
+export const moderateBlogComment = (id: string, isApproved: boolean) =>
+  fetchAt<void>(CATALOG_ADMIN_API, `/blog/comments/${id}/moderate`, {
+    method: "PUT",
+    body: JSON.stringify({ isApproved }),
+  });
+
+export const deleteBlogComment = (id: string) =>
+  fetchAt<void>(CATALOG_ADMIN_API, `/blog/comments/${id}`, { method: "DELETE" });
+
+// --- İçerik modülleri (iletişim, bülten, SSS, stok uyarısı) ---
+export const getContactMessages = (unreadOnly?: boolean) => {
+  const qs = unreadOnly ? "?unreadOnly=true" : "";
+  return fetchAt<AdminContactMessage[]>(CATALOG_ADMIN_API, `/contact${qs}`);
+};
+
+export const markContactMessageRead = (id: string, isRead = true) =>
+  fetchAt<AdminContactMessage>(CATALOG_ADMIN_API, `/contact/${id}/read`, {
+    method: "PUT",
+    body: JSON.stringify({ isRead }),
+  });
+
+export const deleteContactMessage = (id: string) =>
+  fetchAt<void>(CATALOG_ADMIN_API, `/contact/${id}`, { method: "DELETE" });
+
+export const getNewsletterSubscribers = (activeOnly?: boolean) => {
+  const qs = activeOnly ? "?activeOnly=true" : "";
+  return fetchAt<AdminNewsletterSubscriber[]>(CATALOG_ADMIN_API, `/newsletter${qs}`);
+};
+
+export const deleteNewsletterSubscriber = (id: string) =>
+  fetchAt<void>(CATALOG_ADMIN_API, `/newsletter/${id}`, { method: "DELETE" });
+
+export async function exportNewsletterCsv(): Promise<Blob> {
+  const token = getToken();
+  const res = await fetch(`${CATALOG_ADMIN_API}/newsletter/export`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (res.status === 401 || res.status === 403) {
+    clearToken();
+    if (typeof window !== "undefined") window.location.href = "/admin/login";
+    throw new Error("Oturum süresi doldu, lütfen tekrar giriş yapın.");
+  }
+  if (!res.ok) throw new Error(await res.text().catch(() => "CSV indirilemedi"));
+  return res.blob();
+}
+
+export const getFaqs = () => fetchAt<AdminFaqItem[]>(CATALOG_ADMIN_API, "/faqs");
+
+export const createFaq = (data: FaqPayload) =>
+  fetchAt<AdminFaqItem>(CATALOG_ADMIN_API, "/faqs", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const updateFaq = (id: string, data: FaqPayload) =>
+  fetchAt<AdminFaqItem>(CATALOG_ADMIN_API, `/faqs/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+
+export const deleteFaq = (id: string) =>
+  fetchAt<void>(CATALOG_ADMIN_API, `/faqs/${id}`, { method: "DELETE" });
+
+export const getCurrencies = () =>
+  fetchAt<AdminCurrency[]>(CATALOG_ADMIN_API, "/currencies");
+
+export const createCurrency = (data: CurrencyPayload) =>
+  fetchAt<AdminCurrency>(CATALOG_ADMIN_API, "/currencies", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const updateCurrency = (id: string, data: CurrencyPayload) =>
+  fetchAt<AdminCurrency>(CATALOG_ADMIN_API, `/currencies/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+
+export const deleteCurrency = (id: string) =>
+  fetchAt<void>(CATALOG_ADMIN_API, `/currencies/${id}`, { method: "DELETE" });
+
+export interface AdminCurrency {
+  id: string;
+  code: string;
+  symbol: string;
+  name: string;
+  rateToBase: number;
+  isDefault: boolean;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string | null;
+}
+
+export interface CurrencyPayload {
+  code: string;
+  symbol: string;
+  name: string;
+  rateToBase: number;
+  isDefault?: boolean;
+  isActive?: boolean;
+}
+
+export const getStockAlerts = (pendingOnly = true) =>
+  fetchAt<AdminStockAlert[]>(
+    CATALOG_ADMIN_API,
+    `/stock-alerts?pendingOnly=${pendingOnly}`,
+  );
+
+export const notifyStockAlert = (id: string) =>
+  fetchAt<{
+    id: string;
+    email: string;
+    productId: string;
+    productName: string;
+    isNotified: boolean;
+    notifiedAt: string;
+  }>(CATALOG_ADMIN_API, `/stock-alerts/${id}/notify`, { method: "POST" });
+
+// --- Ürün toplu işlem / CSV / çoğaltma ---
+export type BulkProductAction =
+  | "activate"
+  | "deactivate"
+  | "delete"
+  | "changeCategory";
+
+export const bulkProducts = (
+  action: BulkProductAction,
+  productIds: string[],
+  categoryId?: string,
+) =>
+  fetchAt<{ count: number; action: string }>(CATALOG_ADMIN_API, "/products/bulk", {
+    method: "POST",
+    body: JSON.stringify({
+      action,
+      productIds,
+      categoryId: categoryId ?? null,
+    }),
+  });
+
+export const duplicateProduct = (id: string) =>
+  fetchAt<{ id: string; name: string; slug: string }>(
+    CATALOG_ADMIN_API,
+    `/products/${id}/duplicate`,
+    { method: "POST" },
+  );
+
+export async function exportProductsCsv(): Promise<Blob> {
+  const token = getToken();
+  const res = await fetch(`${CATALOG_ADMIN_API}/products/export`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+  if (res.status === 401 || res.status === 403) {
+    clearToken();
+    if (typeof window !== "undefined") window.location.href = "/admin/login";
+    throw new Error("Oturum süresi doldu, lütfen tekrar giriş yapın.");
+  }
+  if (!res.ok) {
+    const error = await res.text().catch(() => "");
+    throw new Error(error || `HTTP ${res.status}`);
+  }
+  return res.blob();
+}
+
+export async function importProductsCsv(file: File): Promise<ProductImportReport> {
+  const token = getToken();
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch(`${CATALOG_ADMIN_API}/products/import`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: formData,
+  });
+
+  if (res.status === 401 || res.status === 403) {
+    clearToken();
+    if (typeof window !== "undefined") window.location.href = "/admin/login";
+    throw new Error("Oturum süresi doldu, lütfen tekrar giriş yapın.");
+  }
+  if (!res.ok) {
+    const error = await res.text().catch(() => "");
+    throw new Error(error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export interface ProductImportReport {
+  created: number;
+  updated: number;
+  skipped: number;
+  errorCount: number;
+  errors: { row: number; message: string }[];
+}
+
+// --- Depolar ---
+export const getWarehouses = () =>
+  fetchAt<AdminWarehouse[]>(CATALOG_ADMIN_API, "/warehouses");
+
+export const createWarehouse = (data: WarehousePayload) =>
+  fetchAt<AdminWarehouse>(CATALOG_ADMIN_API, "/warehouses", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const updateWarehouse = (id: string, data: WarehousePayload) =>
+  fetchAt<AdminWarehouse>(CATALOG_ADMIN_API, `/warehouses/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+
+export const deleteWarehouse = (id: string) =>
+  fetchAt<void>(CATALOG_ADMIN_API, `/warehouses/${id}`, { method: "DELETE" });
+
+export const getWarehouseStock = (id: string) =>
+  fetchAt<WarehouseStockLine[]>(CATALOG_ADMIN_API, `/warehouses/${id}/stock`);
+
+export const adjustWarehouseStock = (
+  warehouseId: string,
+  data: {
+    variantId: string;
+    quantity: number;
+    type: StockMovementType;
+    note?: string | null;
+    reference?: string | null;
+  },
+) =>
+  fetchAt<{
+    warehouseId: string;
+    variantId: string;
+    sku: string;
+    warehouseQuantity: number;
+    totalStock: number;
+  }>(CATALOG_ADMIN_API, `/warehouses/${warehouseId}/stock/adjust`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export interface AdminWarehouse {
+  id: string;
+  name: string;
+  code?: string | null;
+  address?: string | null;
+  isActive: boolean;
+  isDefault: boolean;
+  createdAt?: string;
+  updatedAt?: string | null;
+  stockLines?: number;
+  totalUnits?: number;
+}
+
+export interface WarehousePayload {
+  name: string;
+  code?: string | null;
+  address?: string | null;
+  isActive?: boolean;
+  isDefault?: boolean;
+}
+
+export interface WarehouseStockLine {
+  id: string;
+  productVariantId: string;
+  sku: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  updatedAt?: string | null;
+}
+
+export interface AdminContactMessage {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  subject: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface AdminNewsletterSubscriber {
+  id: string;
+  email: string;
+  isConfirmed: boolean;
+  confirmedAt?: string | null;
+  createdAt: string;
+  unsubscribedAt?: string | null;
+}
+
+export interface AdminFaqItem {
+  id: string;
+  category: string;
+  question: string;
+  answer: string;
+  sortOrder: number;
+  isPublished: boolean;
+  createdAt: string;
+  updatedAt?: string | null;
+}
+
+export interface FaqPayload {
+  category: string;
+  question: string;
+  answer: string;
+  sortOrder?: number;
+  isPublished?: boolean;
+}
+
+export interface AdminStockAlert {
+  id: string;
+  productId: string;
+  productName?: string | null;
+  email: string;
+  userId?: string | null;
+  isNotified: boolean;
+  createdAt: string;
+  notifiedAt?: string | null;
+}
+
+export interface AdminBlogPost {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt?: string | null;
+  coverImageUrl?: string | null;
+  authorName?: string | null;
+  isPublished: boolean;
+  isFeatured: boolean;
+  publishedAt?: string | null;
+  viewCount: number;
+  readingTimeMinutes: number;
+  category?: { id: string; name: string } | null;
+  tags: { id: string; name: string }[];
+}
+
+export interface AdminBlogPostDetail {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt?: string | null;
+  content: string;
+  coverImageUrl?: string | null;
+  authorName?: string | null;
+  readingTimeMinutes: number;
+  isPublished: boolean;
+  isFeatured: boolean;
+  publishedAt?: string | null;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
+  viewCount: number;
+  blogCategoryId?: string | null;
+  tagIds: string[];
+}
+
+export interface BlogPostPayload {
+  title: string;
+  slug?: string | null;
+  excerpt?: string | null;
+  content?: string | null;
+  coverImageUrl?: string | null;
+  authorName?: string | null;
+  readingTimeMinutes?: number | null;
+  isPublished: boolean;
+  isFeatured: boolean;
+  publishedAt?: string | null;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
+  blogCategoryId?: string | null;
+  tagIds?: string[];
+}
+
+export interface AdminBlogCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  sortOrder: number;
+  postCount?: number;
+}
+
+export interface AdminBlogTag {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export interface AdminBlogComment {
+  id: string;
+  authorName: string;
+  authorEmail?: string | null;
+  content: string;
+  isApproved: boolean;
+  createdAt: string;
+  post: { id: string; title: string; slug: string };
+}
+
 // --- Raporlar ve bildirimler (Shopping.Aggregator) ---
 export const getSalesReport = (days = 30) =>
   fetchApi<SalesReport>(`/reports/sales?days=${days}`);
@@ -467,6 +1367,9 @@ export const getStockReport = (lowStockOnly = false) =>
 export const getReturnReport = (days = 90) =>
   fetchApi<ReturnReport>(`/reports/returns?days=${days}`);
 
+export const getConversionReport = (days = 30) =>
+  fetchApi<ConversionReport>(`/reports/conversion?days=${days}`);
+
 export const getNotifications = () => fetchApi<NotificationFeed>("/notifications");
 
 export interface AdminReview {
@@ -480,6 +1383,25 @@ export interface AdminReview {
   comment: string | null;
   isApproved: boolean;
   moderatorNote: string | null;
+  isVerifiedPurchase?: boolean;
+  helpfulCount?: number;
+  notHelpfulCount?: number;
+  imageUrls?: string[];
+  createdAt: string;
+}
+
+export interface AdminProductQuestion {
+  id: string;
+  productId: string;
+  productName: string;
+  userId: string | null;
+  userName: string;
+  email: string | null;
+  question: string;
+  answer: string | null;
+  answeredBy: string | null;
+  answeredAt: string | null;
+  isApproved: boolean;
   createdAt: string;
 }
 
@@ -521,15 +1443,25 @@ export interface Order {
   totalAmount: number;
   orderStatus: string;
   orderDate: string;
+  orderNumber?: string;
+  trackingNumber?: string;
   description?: string;
+  adminNote?: string | null;
   firstName?: string;
   lastName?: string;
   emailAddress?: string;
   addressLine?: string;
   city?: string;
+  state?: string;
+  country?: string;
+  zipCode?: string;
   discountAmount?: number;
   couponCode?: string;
   shippingCost?: number;
+  paymentMethod?: string;
+  giftWrap?: boolean;
+  giftMessage?: string;
+  statusHistory?: { status: string; note?: string; createdAt: string }[];
   orderItems: OrderItem[];
 }
 
@@ -543,6 +1475,34 @@ export interface OrderItem {
   selectedAttributes?: string;
 }
 
+export interface CreateManualOrderItemPayload {
+  productId: string;
+  productName: string;
+  unitPrice: number;
+  units: number;
+  pictureUrl?: string | null;
+  selectedAttributes?: string | null;
+}
+
+export interface CreateManualOrderPayload {
+  buyerId?: string | null;
+  firstName: string;
+  lastName: string;
+  emailAddress: string;
+  addressLine: string;
+  city: string;
+  state?: string | null;
+  country?: string | null;
+  zipCode?: string | null;
+  paymentMethod?: string | null;
+  description?: string | null;
+  adminNote?: string | null;
+  shippingCost?: number | null;
+  discountAmount?: number | null;
+  initialStatus?: string | null;
+  items: CreateManualOrderItemPayload[];
+}
+
 // --- İade ---
 
 export type ReturnStatus =
@@ -551,6 +1511,8 @@ export type ReturnStatus =
   | "Rejected"
   | "Refunded"
   | "Cancelled";
+
+export type ReturnRequestType = "Refund" | "Exchange";
 
 export const RETURN_STATUS_LABELS: Record<ReturnStatus, string> = {
   Pending: "Onay bekliyor",
@@ -567,6 +1529,9 @@ export interface ReturnItem {
   productName: string;
   unitPrice: number;
   units: number;
+  exchangeProductId?: string | null;
+  exchangeProductName?: string | null;
+  exchangeSelectedAttributes?: string | null;
 }
 
 export interface ReturnRequest {
@@ -574,6 +1539,8 @@ export interface ReturnRequest {
   orderId: string;
   buyerId: string;
   requestNumber: string;
+  requestType?: ReturnRequestType;
+  requestTypeName?: string;
   reason: string;
   reasonName: string;
   reasonDetail?: string;
@@ -605,6 +1572,14 @@ export interface Customer {
   isBlocked: boolean;
   roles: string[];
   addressCount: number;
+}
+
+export interface CustomerPage {
+  items: Customer[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
 }
 
 export interface CustomerAddress {
@@ -663,6 +1638,13 @@ export interface CategoryTree {
   id: string;
   name: string;
   parentId?: string;
+  slug?: string | null;
+  imageUrl?: string | null;
+  sortOrder?: number;
+  isFeatured?: boolean;
+  showInMenu?: boolean;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
   attributeCount: number;
   children: CategoryTree[];
 }
@@ -671,6 +1653,13 @@ export interface CategoryDetail {
   id: string;
   name: string;
   parentId?: string;
+  slug?: string | null;
+  imageUrl?: string | null;
+  sortOrder?: number;
+  isFeatured?: boolean;
+  showInMenu?: boolean;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
   attributes: CategoryAttribute[];
 }
 
@@ -701,6 +1690,10 @@ export interface Brand {
   id: string;
   name: string;
   logoUrl?: string;
+  slug?: string | null;
+  description?: string | null;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
 }
 
 export interface ProductImagePayload {
@@ -751,6 +1744,13 @@ export interface UpdateProductPayload {
 export interface CategoryPayload {
   name: string;
   parentId?: string | null;
+  slug?: string | null;
+  imageUrl?: string | null;
+  sortOrder?: number;
+  isFeatured?: boolean;
+  showInMenu?: boolean;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
 }
 
 export interface AssignAttributePayload {
@@ -771,6 +1771,10 @@ export interface AttributePayload {
 export interface BrandPayload {
   name: string;
   logoUrl?: string | null;
+  slug?: string | null;
+  description?: string | null;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
 }
 
 // --- Promosyon ---
@@ -1001,7 +2005,10 @@ export interface SiteSetting {
 
 export const SETTING_GROUP_LABELS: Record<string, string> = {
   general: "Site bilgileri",
+  seo: "SEO",
   commerce: "Ticaret",
+  payment: "Ödeme",
+  tax: "Vergi / KDV",
   shipping: "Kargo",
   email: "E-posta",
   social: "Sosyal medya",
@@ -1124,6 +2131,20 @@ export interface ReturnReport {
   totalRefunded: number;
   byStatus?: { status: string; count: number }[];
   byReason?: { reason: string; count: number }[];
+}
+
+export interface ConversionReport {
+  days: number;
+  newUsers: number;
+  totalOrders: number;
+  paidOrders: number;
+  shippedOrders: number;
+  deliveredOrders: number;
+  cancelledOrders: number;
+  registrationToOrderRate: number;
+  orderToPaidRate: number;
+  paidToDeliveredRate: number;
+  stages: { key: string; label: string; count: number; rate: number }[];
 }
 
 // --- Bildirim merkezi ---

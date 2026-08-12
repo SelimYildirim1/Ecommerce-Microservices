@@ -23,6 +23,13 @@ public enum ReturnReason
     Damaged = 7
 }
 
+/// <summary>Iade mi degisim mi.</summary>
+public enum ReturnRequestType
+{
+    Refund = 0,
+    Exchange = 1
+}
+
 public class ReturnRequest : BaseEntity
 {
     public Guid OrderId { get; set; }
@@ -30,6 +37,8 @@ public class ReturnRequest : BaseEntity
 
     /// <summary>Musteriye gosterilen kisa talep numarasi (orn. IAD-20260728-4F2A).</summary>
     public string RequestNumber { get; set; } = default!;
+
+    public ReturnRequestType RequestType { get; set; } = ReturnRequestType.Refund;
 
     public ReturnReason Reason { get; set; }
     public string? ReasonDetail { get; set; }
@@ -58,4 +67,9 @@ public class ReturnRequestItem : BaseEntity
     public string ProductName { get; set; } = default!;
     public decimal UnitPrice { get; set; }
     public int Units { get; set; }
+
+    /// <summary>Degisim talebinde istenen urun.</summary>
+    public Guid? ExchangeProductId { get; set; }
+    public string? ExchangeProductName { get; set; }
+    public string? ExchangeSelectedAttributes { get; set; }
 }

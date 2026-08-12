@@ -15,4 +15,7 @@ public class ProductImage : BaseEntity
 
     /// <summary>Sıralama</summary>
     public int SortOrder { get; set; }
+
+    /// <summary>image | video</summary>
+    public string MediaType { get; set; } = "image";
 }

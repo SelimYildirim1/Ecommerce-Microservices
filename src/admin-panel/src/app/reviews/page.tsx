@@ -1,10 +1,16 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { deleteReview, getReviews, moderateReview } from "@/lib/api";
+import {
+  deleteReview,
+  getReviews,
+  moderateReview,
+  resolveImageUrl,
+} from "@/lib/api";
 import type { AdminReview } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -13,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Check, Star, Trash2, X } from "lucide-react";
+import { BadgeCheck, Check, Star, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import toast from "react-hot-toast";
 
@@ -31,6 +37,7 @@ const formatDate = (iso: string) =>
 export default function ReviewsPage() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<Filter>("pending");
+  const [notes, setNotes] = useState<Record<string, string>>({});
 
   const approvedParam =
     filter === "all" ? undefined : filter === "approved";
@@ -43,8 +50,15 @@ export default function ReviewsPage() {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["reviews"] });
 
   const moderate = useMutation({
-    mutationFn: ({ id, isApproved }: { id: string; isApproved: boolean }) =>
-      moderateReview(id, { isApproved }),
+    mutationFn: ({
+      id,
+      isApproved,
+      moderatorNote,
+    }: {
+      id: string;
+      isApproved: boolean;
+      moderatorNote?: string;
+    }) => moderateReview(id, { isApproved, moderatorNote }),
     onSuccess: (_, variables) => {
       toast.success(variables.isApproved ? "Yorum yayınlandı." : "Yorum yayından kaldırıldı.");
       invalidate();
@@ -113,6 +127,7 @@ export default function ReviewsPage() {
                   <TableHead>Müşteri</TableHead>
                   <TableHead>Puan</TableHead>
                   <TableHead>Yorum</TableHead>
+                  <TableHead>Moderatör notu</TableHead>
                   <TableHead>Tarih</TableHead>
                   <TableHead>Durum</TableHead>
                   <TableHead className="text-right">İşlem</TableHead>
@@ -123,14 +138,23 @@ export default function ReviewsPage() {
                   <ReviewRow
                     key={review.id}
                     review={review}
+                    note={notes[review.id] ?? review.moderatorNote ?? ""}
+                    onNoteChange={(value) =>
+                      setNotes((prev) => ({ ...prev, [review.id]: value }))
+                    }
                     onModerate={(isApproved) =>
-                      moderate.mutate({ id: review.id, isApproved })
+                      moderate.mutate({
+                        id: review.id,
+                        isApproved,
+                        moderatorNote: notes[review.id] ?? review.moderatorNote ?? undefined,
+                      })
                     }
                     onDelete={() => {
                       if (confirm("Bu yorumu kalıcı olarak silmek istiyor musunuz?")) {
                         remove.mutate(review.id);
                       }
-                    }}
+                    }
+                  }
                   />
                 ))}
               </TableBody>
@@ -144,19 +168,30 @@ export default function ReviewsPage() {
 
 function ReviewRow({
   review,
+  note,
+  onNoteChange,
   onModerate,
   onDelete,
 }: {
   review: AdminReview;
+  note: string;
+  onNoteChange: (value: string) => void;
   onModerate: (isApproved: boolean) => void;
   onDelete: () => void;
 }) {
   return (
     <TableRow>
-      <TableCell className="font-medium max-w-[180px] truncate">
+      <TableCell className="max-w-[180px] truncate font-medium">
         {review.productName}
       </TableCell>
-      <TableCell>{review.userName}</TableCell>
+      <TableCell>
+        <div className="flex items-center gap-1">
+          {review.userName}
+          {review.isVerifiedPurchase && (
+            <BadgeCheck className="h-3.5 w-3.5 text-emerald-600" aria-label="Doğrulanmış alışveriş" />
+          )}
+        </div>
+      </TableCell>
       <TableCell>
         <span className="flex items-center gap-1">
           <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
@@ -165,9 +200,37 @@ function ReviewRow({
       </TableCell>
       <TableCell className="max-w-[320px]">
         {review.title && <p className="font-medium">{review.title}</p>}
-        <p className="text-sm text-muted-foreground line-clamp-2">
+        <p className="line-clamp-2 text-sm text-muted-foreground">
           {review.comment || "-"}
         </p>
+        {(review.imageUrls?.length ?? 0) > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {review.imageUrls!.map((url) => (
+              <a
+                key={url}
+                href={resolveImageUrl(url)}
+                target="_blank"
+                rel="noreferrer"
+                className="relative h-10 w-10 overflow-hidden rounded border"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={resolveImageUrl(url)}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              </a>
+            ))}
+          </div>
+        )}
+      </TableCell>
+      <TableCell className="min-w-[160px]">
+        <Input
+          value={note}
+          onChange={(e) => onNoteChange(e.target.value)}
+          placeholder="Moderatör notu"
+          className="h-8 text-xs"
+        />
       </TableCell>
       <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
         {formatDate(review.createdAt)}

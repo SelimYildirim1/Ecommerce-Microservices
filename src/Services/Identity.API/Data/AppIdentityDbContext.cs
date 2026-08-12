@@ -12,6 +12,8 @@ public class AppIdentityDbContext : IdentityDbContext<ApplicationUser>
     }
 
     public DbSet<UserAddress> UserAddresses { get; set; }
+    public DbSet<NotificationPreference> NotificationPreferences { get; set; }
+    public DbSet<OtpCode> OtpCodes { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -34,6 +36,25 @@ public class AppIdentityDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(a => a.ZipCode).HasMaxLength(20);
             entity.Property(a => a.Country).HasMaxLength(100);
             entity.Property(a => a.PhoneNumber).HasMaxLength(20);
+        });
+
+        builder.Entity<NotificationPreference>(entity =>
+        {
+            entity.HasKey(n => n.Id);
+            entity.HasIndex(n => n.UserId).IsUnique();
+            entity.HasOne(n => n.User)
+                .WithMany()
+                .HasForeignKey(n => n.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<OtpCode>(entity =>
+        {
+            entity.HasKey(o => o.Id);
+            entity.Property(o => o.PhoneNumber).HasMaxLength(30).IsRequired();
+            entity.Property(o => o.Code).HasMaxLength(10).IsRequired();
+            entity.Property(o => o.UserId).HasMaxLength(450);
+            entity.HasIndex(o => new { o.PhoneNumber, o.IsUsed });
         });
     }
 }

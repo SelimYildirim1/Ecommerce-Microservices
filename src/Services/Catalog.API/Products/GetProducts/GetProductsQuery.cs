@@ -24,19 +24,21 @@ public record ProductDto(
     double? AverageRating = null,
     int ReviewCount = 0);
 
+public record ProductImageDto(
+    Guid Id,
+    string Url,
+    bool IsPrimary,
+    int SortOrder,
+    string MediaType = "image");
+
 public record VariantDto(
     Guid Id,
     string Sku,
     decimal Price,
     int StockQuantity,
     JsonDocument? Specifics,
-    bool IsActive);
-
-public record ProductImageDto(
-    Guid Id,
-    string Url,
-    bool IsPrimary,
-    int SortOrder);
+    bool IsActive,
+    decimal? CompareAtPrice = null);
 
 // Query - admin tarafi pasif urunleri de gormek icin includeInactive kullanir
 public record GetProductsQuery(bool IncludeInactive = false) : IRequest<IEnumerable<ProductDto>>;

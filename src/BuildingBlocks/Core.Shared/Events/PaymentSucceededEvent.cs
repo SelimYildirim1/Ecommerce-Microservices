@@ -7,5 +7,6 @@ namespace Core.Shared.Events;
 public class PaymentSucceededEvent
 {
     public Guid OrderId { get; set; }
+    public string? OrderNumber { get; set; }
     public string Email { get; set; } = default!;
 }

@@ -2,12 +2,19 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  bulkProducts,
   deleteProduct,
+  duplicateProduct,
+  exportProductsCsv,
+  getCategories,
   getProducts,
+  importProductsCsv,
   resolveImageUrl,
   setProductStatus,
+  type BulkProductAction,
+  type CategoryTree,
+  type Product,
 } from "@/lib/api";
-import type { Product } from "@/lib/api";
 import { formatCurrency } from "@/lib/utils";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,24 +30,53 @@ import {
 } from "@/components/ui/table";
 import Image from "next/image";
 import Link from "next/link";
-import { Plus, Search, Pencil, Trash2, Eye, EyeOff, ImageIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import {
+  Plus,
+  Search,
+  Pencil,
+  Trash2,
+  Eye,
+  EyeOff,
+  ImageIcon,
+  Copy,
+  Download,
+  Upload,
+} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
 const PAGE_SIZE = 20;
 
+function flattenCategories(nodes: CategoryTree[], acc: { id: string; name: string }[] = []) {
+  for (const n of nodes) {
+    acc.push({ id: n.id, name: n.name });
+    if (n.children?.length) flattenCategories(n.children, acc);
+  }
+  return acc;
+}
+
 export default function ProductsPage() {
   const queryClient = useQueryClient();
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["products"],
     queryFn: getProducts,
   });
 
+  const { data: categoryTree = [] } = useQuery({
+    queryKey: ["categories"],
+    queryFn: getCategories,
+  });
+
+  const flatCategories = useMemo(() => flattenCategories(categoryTree), [categoryTree]);
+
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "passive">("all");
   const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [bulkCategoryId, setBulkCategoryId] = useState("");
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["products"] });
 
@@ -61,6 +97,59 @@ export default function ProductsPage() {
       invalidate();
     },
     onError: (err: Error) => toast.error(`Hata: ${err.message}`),
+  });
+
+  const duplicateMutation = useMutation({
+    mutationFn: duplicateProduct,
+    onSuccess: (r) => {
+      toast.success(`Kopya oluşturuldu: ${r.name}`);
+      invalidate();
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const bulkMutation = useMutation({
+    mutationFn: ({
+      action,
+      categoryId,
+    }: {
+      action: BulkProductAction;
+      categoryId?: string;
+    }) => bulkProducts(action, selected, categoryId),
+    onSuccess: (r) => {
+      toast.success(`${r.count} ürün işlendi (${r.action}).`);
+      setSelected([]);
+      invalidate();
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const exportMutation = useMutation({
+    mutationFn: exportProductsCsv,
+    onSuccess: (blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `products-${Date.now()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("CSV indirildi.");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const importMutation = useMutation({
+    mutationFn: importProductsCsv,
+    onSuccess: (report) => {
+      toast.success(
+        `İçe aktarım: ${report.created} yeni, ${report.updated} güncellendi, ${report.skipped} atlandı.`,
+      );
+      if (report.errorCount > 0) {
+        toast.error(`${report.errorCount} satırda hata var.`);
+      }
+      invalidate();
+    },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const filtered = useMemo(() => {
@@ -97,21 +186,128 @@ export default function ProductsPage() {
   const minPrice = (p: Product) =>
     p.variants.length > 0 ? Math.min(...p.variants.map((v) => v.price)) : 0;
 
+  const allVisibleSelected =
+    visible.length > 0 && visible.every((p) => selected.includes(p.id));
+
+  const toggleAllVisible = () => {
+    if (allVisibleSelected) {
+      setSelected((prev) => prev.filter((id) => !visible.some((p) => p.id === id)));
+    } else {
+      setSelected((prev) => [
+        ...new Set([...prev, ...visible.map((p) => p.id)]),
+      ]);
+    }
+  };
+
+  const toggle = (id: string) =>
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold">Ürün Yönetimi</h1>
           <p className="text-sm text-muted-foreground">
             {filtered.length} ürün listeleniyor
+            {selected.length > 0 ? ` · ${selected.length} seçili` : ""}
           </p>
         </div>
-        <Link href="/products/new">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" /> Yeni Ürün
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            disabled={exportMutation.isPending}
+            onClick={() => exportMutation.mutate()}
+          >
+            <Download className="mr-2 h-4 w-4" /> CSV Dışa Aktar
           </Button>
-        </Link>
+          <Button
+            variant="outline"
+            disabled={importMutation.isPending}
+            onClick={() => fileRef.current?.click()}
+          >
+            <Upload className="mr-2 h-4 w-4" /> CSV İçe Aktar
+          </Button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) importMutation.mutate(file);
+              e.target.value = "";
+            }}
+          />
+          <Link href="/products/new">
+            <Button>
+              <Plus className="mr-2 h-4 w-4" /> Yeni Ürün
+            </Button>
+          </Link>
+        </div>
       </div>
+
+      {selected.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 p-3">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={bulkMutation.isPending}
+            onClick={() => bulkMutation.mutate({ action: "activate" })}
+          >
+            Aktifleştir
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={bulkMutation.isPending}
+            onClick={() => bulkMutation.mutate({ action: "deactivate" })}
+          >
+            Pasifleştir
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={bulkMutation.isPending}
+            onClick={() => {
+              if (confirm(`${selected.length} ürün pasife alınacak. Devam?`)) {
+                bulkMutation.mutate({ action: "delete" });
+              }
+            }}
+          >
+            Sil (pasif)
+          </Button>
+          <select
+            value={bulkCategoryId}
+            onChange={(e) => setBulkCategoryId(e.target.value)}
+            className="rounded-md border px-2 py-1.5 text-sm"
+          >
+            <option value="">Kategori seç...</option>
+            {flatCategories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={bulkMutation.isPending || !bulkCategoryId}
+            onClick={() =>
+              bulkMutation.mutate({
+                action: "changeCategory",
+                categoryId: bulkCategoryId,
+              })
+            }
+          >
+            Kategori Değiştir
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setSelected([])}>
+            Seçimi temizle
+          </Button>
+        </div>
+      )}
 
       <Card>
         <CardHeader>
@@ -158,6 +354,14 @@ export default function ProductsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      <input
+                        type="checkbox"
+                        checked={allVisibleSelected}
+                        onChange={toggleAllVisible}
+                        aria-label="Sayfadakileri seç"
+                      />
+                    </TableHead>
                     <TableHead className="w-14"></TableHead>
                     <TableHead>Ürün Adı</TableHead>
                     <TableHead>Kategori</TableHead>
@@ -172,6 +376,14 @@ export default function ProductsPage() {
                 <TableBody>
                   {visible.map((p) => (
                     <TableRow key={p.id}>
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          checked={selected.includes(p.id)}
+                          onChange={() => toggle(p.id)}
+                          aria-label={`${p.name} seç`}
+                        />
+                      </TableCell>
                       <TableCell>
                         <div className="relative h-10 w-10 overflow-hidden rounded border bg-muted">
                           {p.primaryImageUrl ? (
@@ -226,6 +438,15 @@ export default function ProductsPage() {
                               <Eye className="h-4 w-4" />
                             )}
                           </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Çoğalt"
+                            disabled={duplicateMutation.isPending}
+                            onClick={() => duplicateMutation.mutate(p.id)}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
                           <Link href={`/products/${p.id}`}>
                             <Button variant="ghost" size="icon" title="Düzenle">
                               <Pencil className="h-4 w-4" />
@@ -250,7 +471,7 @@ export default function ProductsPage() {
                   ))}
                   {visible.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center text-muted-foreground">
+                      <TableCell colSpan={10} className="text-center text-muted-foreground">
                         Ürün bulunamadı
                       </TableCell>
                     </TableRow>

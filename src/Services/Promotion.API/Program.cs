@@ -1,4 +1,6 @@
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
+using Promotion.API.Consumers;
 using Promotion.API.Data;
 using Serilog;
 
@@ -9,7 +11,6 @@ builder.Host.UseSerilog((context, config) => config.ReadFrom.Configuration(conte
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
-        // Enum'lar isim olarak serilestirilir; istemciler sayisal deger ezberlemez
         options.JsonSerializerOptions.Converters.Add(
             new System.Text.Json.Serialization.JsonStringEnumConverter());
     });
@@ -18,6 +19,21 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddDbContext<PromotionDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddMassTransit(config =>
+{
+    config.AddConsumer<OrderCreatedConsumer>();
+    config.UsingRabbitMq((ctx, cfg) =>
+    {
+        var rabbitMqHost = builder.Configuration["RabbitMQ:HostName"] ?? "localhost";
+        cfg.Host(rabbitMqHost, "/", h =>
+        {
+            h.Username("guest");
+            h.Password("guest");
+        });
+        cfg.ConfigureEndpoints(ctx);
+    });
+});
 
 builder.Services.AddCors(options =>
 {

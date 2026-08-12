@@ -11,11 +11,23 @@ public class Category : BaseEntity
     /// <summary>Üst kategori ID'si. null ise kök kategoridir.</summary>
     public Guid? ParentId { get; set; }
 
+    /// <summary>SEO dostu URL parçası. Boşsa Id kullanılır.</summary>
+    public string? Slug { get; set; }
+
     /// <summary>Vitrindeki kategori görseli. Boşsa kategori görsel şeridinde gösterilmez.</summary>
     public string? ImageUrl { get; set; }
 
     /// <summary>Vitrinde ve menüde sıralama; küçük olan önce gelir.</summary>
     public int SortOrder { get; set; }
+
+    /// <summary>Ana sayfa şeridi ve öne çıkan listelerde gösterilsin mi?</summary>
+    public bool IsFeatured { get; set; }
+
+    /// <summary>Header menüsünde gösterilsin mi?</summary>
+    public bool ShowInMenu { get; set; } = true;
+
+    public string? MetaTitle { get; set; }
+    public string? MetaDescription { get; set; }
 
     // Navigation
     public Category? Parent { get; set; }

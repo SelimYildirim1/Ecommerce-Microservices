@@ -1,0 +1,27 @@
+# Yerel hot-reload override.
+# Kullanım: docker compose -f docker-compose.yml -f docker-compose.dev.yml up ecommerce.web
+#
+# Üretim (varsayılan docker-compose.yml) storefront'u `npm start` ile çalıştırır.
+# Bu dosya kaynak mount + `npm run dev` ile geliştirme deneyimini geri getirir.
+
+services:
+  ecommerce.web:
+    environment:
+      - NODE_ENV=development
+      - WATCHPACK_POLLING=true
+    volumes:
+      - ./src/Clients/ecommerce-web:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+
+  admin.panel:
+    profiles: ["admin-dev"]
+    environment:
+      - NODE_ENV=development
+      - WATCHPACK_POLLING=true
+    volumes:
+      - ./src/admin-panel:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev -- -p 3000

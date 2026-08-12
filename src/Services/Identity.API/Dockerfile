@@ -13,6 +13,7 @@ RUN dotnet publish "src/Services/Identity.API/Identity.API.csproj" -c Release -o
 # 2. Aşama: Runtime (Çalıştırma)
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/out .
 
 # Docker içinde API 8080 portundan yayın yapar

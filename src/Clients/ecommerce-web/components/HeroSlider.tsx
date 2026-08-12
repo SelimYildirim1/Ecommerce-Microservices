@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -17,9 +18,11 @@ const AUTOPLAY_MS = 6000;
 /**
  * Ana sayfa hero alani. Panelden gelen bannerlari sirayla gosterir;
  * tek banner varsa oklar gizlenir ve otomatik gecis durur.
+ * Performans: yalnizca aktif + komsu slayt gorselleri yuklenir.
  */
 export default function HeroSlider({ slides }: { slides: HeroSlide[] }) {
   const [index, setIndex] = useState(0);
+  const [loaded, setLoaded] = useState<Set<number>>(() => new Set([0]));
   const total = slides.length;
 
   useEffect(() => {
@@ -29,6 +32,26 @@ export default function HeroSlider({ slides }: { slides: HeroSlide[] }) {
     return () => clearInterval(timer);
   }, [total]);
 
+  useEffect(() => {
+    if (total === 0) return;
+    const neighbors = [
+      index,
+      (index + 1) % total,
+      (index - 1 + total) % total,
+    ];
+    setLoaded((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const i of neighbors) {
+        if (!next.has(i)) {
+          next.add(i);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [index, total]);
+
   if (total === 0) return null;
 
   const active = slides[Math.min(index, total - 1)];
@@ -36,16 +59,27 @@ export default function HeroSlider({ slides }: { slides: HeroSlide[] }) {
 
   return (
     <section className="relative flex h-[62vh] min-h-[460px] w-full items-center overflow-hidden bg-cream">
-      {slides.map((slide, i) => (
-        <div
-          key={slide.id}
-          aria-hidden={i !== index}
-          className={`absolute inset-0 z-0 bg-cover bg-right bg-no-repeat transition-opacity duration-700 ${
-            i === index ? "opacity-90" : "opacity-0"
-          }`}
-          style={{ backgroundImage: `url('${slide.imageUrl}')` }}
-        />
-      ))}
+      {slides.map((slide, i) => {
+        if (!loaded.has(i)) return null;
+        return (
+          <div
+            key={slide.id}
+            aria-hidden={i !== index}
+            className={`absolute inset-0 z-0 transition-opacity duration-700 ${
+              i === index ? "opacity-90" : "opacity-0"
+            }`}
+          >
+            <Image
+              src={slide.imageUrl}
+              alt=""
+              fill
+              priority={i === 0}
+              sizes="100vw"
+              className="object-cover object-right"
+            />
+          </div>
+        );
+      })}
 
       <div className="absolute inset-0 z-10 w-full bg-gradient-to-r from-white via-white/85 to-transparent md:w-3/4 lg:w-2/3" />
 

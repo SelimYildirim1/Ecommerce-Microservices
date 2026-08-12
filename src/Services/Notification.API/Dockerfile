@@ -10,6 +10,7 @@ RUN dotnet publish "src/Services/Notification.API/Notification.API.csproj" -c Re
 # 2. Aşama: Runtime (Çalıştırma)
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/out .
 
 ENV ASPNETCORE_URLS=http://+:8080

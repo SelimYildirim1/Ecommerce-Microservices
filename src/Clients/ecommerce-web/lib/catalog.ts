@@ -5,6 +5,7 @@
 // urun karti, liste ve detay sayfasi tek bir sozlesmeye bakar.
 
 import { API_URL } from "@/lib/api";
+import { formatConvertedPrice, getCurrencyRuntime } from "./currency-runtime";
 
 export interface Variant {
   id: string;
@@ -13,6 +14,7 @@ export interface Variant {
   stockQuantity: number;
   specifics: Record<string, unknown> | null;
   isActive: boolean;
+  compareAtPrice?: number | null;
 }
 
 export interface ProductImage {
@@ -20,6 +22,7 @@ export interface ProductImage {
   url: string;
   isPrimary: boolean;
   sortOrder: number;
+  mediaType?: string;
 }
 
 export interface Product {
@@ -73,6 +76,11 @@ export interface Review {
   title: string | null;
   comment: string | null;
   isApproved: boolean;
+  moderatorNote?: string | null;
+  isVerifiedPurchase?: boolean;
+  helpfulCount?: number;
+  notHelpfulCount?: number;
+  imageUrls?: string[];
   createdAt: string;
 }
 
@@ -81,6 +89,20 @@ export interface ReviewSummary {
   averageRating: number;
   totalCount: number;
   distribution: Record<string, number>;
+}
+
+export interface ProductQuestion {
+  id: string;
+  productId: string;
+  userId: string | null;
+  userName: string;
+  email: string | null;
+  question: string;
+  answer: string | null;
+  answeredBy: string | null;
+  answeredAt: string | null;
+  isApproved: boolean;
+  createdAt: string;
 }
 
 export interface Favorite {
@@ -106,13 +128,12 @@ export type SortValue = (typeof SORT_OPTIONS)[number]["value"];
 
 export const PAGE_SIZE = 24;
 
-const currency = new Intl.NumberFormat("tr-TR", {
-  style: "currency",
-  currency: "TRY",
-});
-
+/** Seçili para birimine (cookie/runtime) göre formatlar; base fiyat TRY varsayılır. */
 export function formatPrice(value: number): string {
-  return currency.format(Number.isFinite(value) ? value : 0);
+  return formatConvertedPrice(
+    Number.isFinite(value) ? value : 0,
+    getCurrencyRuntime(),
+  );
 }
 
 /** Vitrinde gosterilecek fiyat: aktif varyantlarin en dususu. */
@@ -185,8 +206,20 @@ export function attributeLabel(code: string): string {
 
 /**
  * Varyantin `specifics` alanindan secim gruplarini cikarir.
- * Ornek: { Renk: ["Siyah", "Beyaz"], Beden: ["M", "L"] }
+ * Garanti/malzeme gibi varyant olmayan alanlar secim olarak gosterilmez.
  */
+const NON_VARIANT_SPECIFIC_KEYS = new Set([
+  "warranty",
+  "fabric",
+  "material",
+  "weight",
+  "volume",
+  "dimension",
+  "cpu",
+  "gpu",
+  "screen_size",
+]);
+
 export function getVariantOptions(variants: Variant[]): Record<string, string[]> {
   const groups: Record<string, string[]> = {};
 
@@ -194,6 +227,7 @@ export function getVariantOptions(variants: Variant[]): Record<string, string[]>
     if (!variant.isActive || !variant.specifics) continue;
 
     for (const [key, raw] of Object.entries(variant.specifics)) {
+      if (NON_VARIANT_SPECIFIC_KEYS.has(key)) continue;
       if (raw === null || raw === undefined) continue;
       const value = String(raw);
       if (!value) continue;

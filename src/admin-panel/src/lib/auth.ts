@@ -1,7 +1,14 @@
 export const AUTH_COOKIE = "admin_token";
 
+/** Next.js basePath — hard redirects (window.location) için gerekli */
+export const ADMIN_BASE_PATH = "/admin";
+export const ADMIN_LOGIN_PATH = `${ADMIN_BASE_PATH}/login`;
+
 export const AUTH_API =
   process.env.NEXT_PUBLIC_AUTH_URL || "http://localhost:8001/auth";
+
+export const STAFF_ROLES = ["Admin", "Editor", "Support", "Warehouse"] as const;
+export type StaffRole = (typeof STAFF_ROLES)[number];
 
 export interface AdminUser {
   id: string;
@@ -55,9 +62,21 @@ export function isExpired(token: string): boolean {
   return payload.exp * 1000 < Date.now();
 }
 
+/** Token suresi bitmeye 2 dk kala yenileme penceresi. */
+export function isNearExpiry(token: string, skewMs = 2 * 60 * 1000): boolean {
+  const payload = decodeToken(token);
+  if (!payload?.exp) return false;
+  return payload.exp * 1000 - Date.now() <= skewMs;
+}
+
 export function isAdmin(token: string): boolean {
   const user = parseUser(token);
   return user?.roles.includes("Admin") ?? false;
+}
+
+export function isStaff(token: string): boolean {
+  const user = parseUser(token);
+  return user?.roles.some((r) => (STAFF_ROLES as readonly string[]).includes(r)) ?? false;
 }
 
 export function getToken(): string | null {
@@ -76,21 +95,24 @@ export function setToken(token: string, days = 7) {
       : "";
   document.cookie = `${AUTH_COOKIE}=${encodeURIComponent(
     token
-  )}; expires=${expires}; path=/; SameSite=Lax${secure}`;
+  )}; expires=${expires}; path=${ADMIN_BASE_PATH}; SameSite=Lax${secure}`;
 }
 
 export function clearToken() {
+  document.cookie = `${AUTH_COOKIE}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=${ADMIN_BASE_PATH}`;
+  // Eski path=/ cookie'lerini de temizle
   document.cookie = `${AUTH_COOKIE}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
 }
 
 export async function login(
   email: string,
-  password: string
+  password: string,
+  rememberMe = true
 ): Promise<{ token: string; user: AdminUser }> {
   const res = await fetch(`${AUTH_API}/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, rememberMe }),
   });
 
   if (!res.ok) {
@@ -102,8 +124,47 @@ export async function login(
   const user = parseUser(data.token);
 
   if (!user) throw new Error("Token çözümlenemedi.");
-  if (!user.roles.includes("Admin"))
+  if (!user.roles.some((r) => (STAFF_ROLES as readonly string[]).includes(r)))
     throw new Error("Bu hesabın yönetim paneline erişim yetkisi yok.");
 
   return { token: data.token, user };
+}
+
+let refreshInFlight: Promise<string | null> | null = null;
+
+/** Süresi dolmadan önce sessiz yenileme. Paralel çağrıları tek isteğe birleştirir. */
+export async function refreshToken(): Promise<string | null> {
+  if (refreshInFlight) return refreshInFlight;
+
+  refreshInFlight = (async () => {
+    const token = getToken();
+    if (!token) return null;
+
+    try {
+      const res = await fetch(`${AUTH_API}/refresh`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return null;
+      const data = (await res.json()) as { token: string };
+      setToken(data.token, 30);
+      return data.token;
+    } catch {
+      return null;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+
+  return refreshInFlight;
+}
+
+/** Gerekirse token yeniler ve guncel degeri dondurur. */
+export async function ensureFreshToken(): Promise<string | null> {
+  const token = getToken();
+  if (!token) return null;
+  if (isExpired(token) || isNearExpiry(token)) {
+    return (await refreshToken()) ?? (isExpired(token) ? null : token);
+  }
+  return token;
 }

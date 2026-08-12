@@ -1,5 +1,6 @@
 using Catalog.API.Data;
 using Catalog.API.Entities;
+using Catalog.API.Helpers;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,7 +15,8 @@ public record SaveBannerRequest(
     int SortOrder,
     bool IsActive,
     DateTime? StartsAt,
-    DateTime? EndsAt);
+    DateTime? EndsAt,
+    Guid? CategoryId = null);
 
 public record SaveStaticPageRequest(
     string Slug,
@@ -169,6 +171,7 @@ public class AdminCmsController : ControllerBase
         banner.IsActive = r.IsActive;
         banner.StartsAt = r.StartsAt;
         banner.EndsAt = r.EndsAt;
+        banner.CategoryId = r.CategoryId;
     }
 
     private static void Apply(StaticPage page, SaveStaticPageRequest r, string slug)
@@ -183,30 +186,7 @@ public class AdminCmsController : ControllerBase
         page.SortOrder = r.SortOrder;
     }
 
-    /// <summary>Bos birakilan slug basliktan uretilir; Turkce karakterler sadelestirilir.</summary>
-    private static string Slugify(string? slug, string title)
-    {
-        var source = string.IsNullOrWhiteSpace(slug) ? title : slug;
-
-        var replacements = new Dictionary<char, char>
-        {
-            ['ı'] = 'i', ['İ'] = 'i', ['ğ'] = 'g', ['Ğ'] = 'g',
-            ['ü'] = 'u', ['Ü'] = 'u', ['ş'] = 's', ['Ş'] = 's',
-            ['ö'] = 'o', ['Ö'] = 'o', ['ç'] = 'c', ['Ç'] = 'c'
-        };
-
-        var builder = new System.Text.StringBuilder();
-
-        foreach (var c in source.Trim().ToLowerInvariant())
-        {
-            var mapped = replacements.TryGetValue(c, out var r) ? r : c;
-
-            if (char.IsLetterOrDigit(mapped)) builder.Append(mapped);
-            else if (mapped is ' ' or '-' or '_') builder.Append('-');
-        }
-
-        return builder.ToString().Trim('-');
-    }
+    private static string Slugify(string? slug, string title) => SlugHelper.Slugify(slug, title);
 }
 
 /// <summary>Vitrinin okudugu yayindaki icerikler.</summary>
@@ -263,5 +243,49 @@ public class PublicCmsController : ControllerBase
             .FirstOrDefaultAsync(p => p.Slug == slug && p.IsPublished);
 
         return page is null ? NotFound() : Ok(page);
+    }
+
+    /// <summary>Konum bazlı aktif menü (header, footer).</summary>
+    [HttpGet("menus/{location}")]
+    public async Task<IActionResult> GetMenu(string location)
+    {
+        var loc = location.Trim().ToLowerInvariant();
+
+        var menu = await _context.NavMenus
+            .AsNoTracking()
+            .Include(m => m.Items)
+            .Where(m => m.IsActive && m.Location == loc)
+            .OrderByDescending(m => m.UpdatedAt ?? m.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        if (menu is null)
+            return Ok(new { location = loc, items = Array.Empty<object>() });
+
+        var activeItems = menu.Items.Where(i => i.IsActive).ToList();
+
+        object BuildTree(Guid? parentId) =>
+            activeItems
+                .Where(i => i.ParentId == parentId)
+                .OrderBy(i => i.SortOrder)
+                .ThenBy(i => i.Label)
+                .Select(i => new
+                {
+                    i.Id,
+                    i.Label,
+                    i.Url,
+                    i.LinkType,
+                    i.ReferenceId,
+                    i.OpenInNewTab,
+                    children = BuildTree(i.Id)
+                })
+                .ToList();
+
+        return Ok(new
+        {
+            menu.Id,
+            menu.Name,
+            menu.Location,
+            items = BuildTree(null)
+        });
     }
 }

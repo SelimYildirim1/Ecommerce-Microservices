@@ -10,6 +10,11 @@ public class Order : BaseEntity, IAggregateRoot
     /// <summary>Identity'deki kullanici Id'si. "UserName" kolonunda tutulur.</summary>
     public string BuyerId { get; private set; } = default!;
 
+    /// <summary>Insan okunabilir siparis no (YS-yyMMdd-XXXX). Eski kayitlarda null olabilir.</summary>
+    public string? OrderNumber { get; private set; }
+
+    public string? TrackingNumber { get; private set; }
+
     // Alici bilgileri (checkout formundan gelir)
     public string FirstName { get; private set; } = string.Empty;
     public string LastName { get; private set; } = string.Empty;
@@ -21,6 +26,9 @@ public class Order : BaseEntity, IAggregateRoot
     public string OrderStatus { get; private set; } = "Submitted"; // Submitted, Paid, Shipped
     public string? Description { get; private set; } // Müşteri notu
 
+    /// <summary>Admin paneli iç notu (müşteriye gösterilmez).</summary>
+    public string? AdminNote { get; private set; }
+
     /// <summary>Siparis aninda dondurulan toplam tutar.</summary>
     public decimal TotalPrice { get; private set; }
 
@@ -29,9 +37,32 @@ public class Order : BaseEntity, IAggregateRoot
     public string? CouponCode { get; private set; }
     public decimal ShippingCost { get; private set; }
 
+    // Fatura bilgileri (opsiyonel; geriye donuk uyumlu)
+    public string? InvoiceType { get; private set; } // individual | corporate
+    public string? TaxId { get; private set; }
+    public string? TaxOffice { get; private set; }
+    public string? CompanyName { get; private set; }
+
+    // Fatura adresi (gonderim ile ayni degilse)
+    public bool BillingSameAsShipping { get; private set; } = true;
+    public string? BillingAddressLine { get; private set; }
+    public string? BillingCity { get; private set; }
+    public string? BillingState { get; private set; }
+    public string? BillingCountry { get; private set; }
+    public string? BillingZipCode { get; private set; }
+
+    /// <summary>card | bank_transfer | cash_on_delivery</summary>
+    public string? PaymentMethod { get; private set; } = "card";
+
+    public bool GiftWrap { get; private set; }
+    public string? GiftMessage { get; private set; }
+
     // Sipariş Kalemleri
     private readonly List<OrderItem> _orderItems;
     public IReadOnlyCollection<OrderItem> OrderItems => _orderItems;
+
+    private readonly List<OrderStatusHistory> _statusHistory = new();
+    public IReadOnlyCollection<OrderStatusHistory> StatusHistory => _statusHistory;
 
     /// <summary>
     /// Toplam tutar. Kayitli deger varsa o kullanilir; yoksa kalemlerden hesaplanir.
@@ -51,6 +82,8 @@ public class Order : BaseEntity, IAggregateRoot
         Description = description;
         OrderStatus = "Submitted";
         OrderDate = DateTime.UtcNow;
+        BillingSameAsShipping = true;
+        PaymentMethod = "card";
     }
 
     public void SetContact(string firstName, string lastName, string emailAddress)
@@ -66,6 +99,57 @@ public class Order : BaseEntity, IAggregateRoot
         DiscountAmount = discountAmount;
         CouponCode = couponCode;
         ShippingCost = shippingCost;
+    }
+
+    public void SetOrderNumber(string orderNumber)
+    {
+        if (string.IsNullOrWhiteSpace(orderNumber))
+            throw new ArgumentException("OrderNumber boş olamaz.", nameof(orderNumber));
+        OrderNumber = orderNumber.Trim();
+    }
+
+    public void SetTrackingNumber(string? trackingNumber)
+    {
+        TrackingNumber = string.IsNullOrWhiteSpace(trackingNumber) ? null : trackingNumber.Trim();
+    }
+
+    public void SetInvoice(string? invoiceType, string? taxId, string? taxOffice, string? companyName)
+    {
+        InvoiceType = string.IsNullOrWhiteSpace(invoiceType) ? null : invoiceType.Trim();
+        TaxId = string.IsNullOrWhiteSpace(taxId) ? null : taxId.Trim();
+        TaxOffice = string.IsNullOrWhiteSpace(taxOffice) ? null : taxOffice.Trim();
+        CompanyName = string.IsNullOrWhiteSpace(companyName) ? null : companyName.Trim();
+    }
+
+    public void SetPaymentMethod(string? paymentMethod)
+    {
+        PaymentMethod = string.IsNullOrWhiteSpace(paymentMethod) ? "card" : paymentMethod.Trim();
+    }
+
+    public void SetBillingAddress(
+        bool sameAsShipping,
+        string? addressLine = null,
+        string? city = null,
+        string? state = null,
+        string? country = null,
+        string? zipCode = null)
+    {
+        BillingSameAsShipping = sameAsShipping;
+        if (sameAsShipping)
+        {
+            BillingAddressLine = null;
+            BillingCity = null;
+            BillingState = null;
+            BillingCountry = null;
+            BillingZipCode = null;
+            return;
+        }
+
+        BillingAddressLine = addressLine;
+        BillingCity = city;
+        BillingState = state;
+        BillingCountry = country;
+        BillingZipCode = zipCode;
     }
 
     public void AddOrderItem(Guid productId, string productName, decimal unitPrice,
@@ -85,8 +169,31 @@ public class Order : BaseEntity, IAggregateRoot
         }
     }
 
+    public void SetGiftOptions(bool giftWrap, string? giftMessage)
+    {
+        GiftWrap = giftWrap;
+        GiftMessage = string.IsNullOrWhiteSpace(giftMessage) ? null : giftMessage.Trim();
+    }
+
+    public void SetAdminNote(string? adminNote)
+    {
+        AdminNote = string.IsNullOrWhiteSpace(adminNote) ? null : adminNote.Trim();
+    }
+
     public void SetStatus(string status)
     {
         OrderStatus = status;
+    }
+
+    public void AddStatusHistory(string status, string? note = null)
+    {
+        _statusHistory.Add(new OrderStatusHistory
+        {
+            Id = Guid.NewGuid(),
+            OrderId = Id,
+            Status = status,
+            Note = note,
+            CreatedAt = DateTime.UtcNow
+        });
     }
 }

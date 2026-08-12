@@ -54,7 +54,7 @@ internal static class ProductMappingExtensions
             activeVariants.Select(v => v.Price).FirstOrDefault(),
             activeVariants.Sum(v => v.StockQuantity),
             variants
-                .Select(v => new VariantDto(v.Id, v.Sku, v.Price, v.StockQuantity, v.Specifics, v.IsActive))
+                .Select(v => new VariantDto(v.Id, v.Sku, v.Price, v.StockQuantity, v.Specifics, v.IsActive, v.CompareAtPrice))
                 .ToList(),
             p.CategoryId,
             p.BrandId,
@@ -63,7 +63,7 @@ internal static class ProductMappingExtensions
             p.MetaDescription,
             p.Images
                 .OrderBy(i => i.SortOrder)
-                .Select(i => new ProductImageDto(i.Id, i.Url, i.IsPrimary, i.SortOrder))
+                .Select(i => new ProductImageDto(i.Id, i.Url, i.IsPrimary, i.SortOrder, i.MediaType ?? "image"))
                 .ToList());
     }
 }

@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
-import { useRouter } from "next/navigation";
 import { API_URL, authHeaders } from "@/lib/api";
+import { ensureGuestSession } from "@/lib/guest-session";
 import { notify, parseApiError } from "@/lib/feedback";
 
 interface ProductProps {
@@ -15,6 +15,8 @@ interface ProductProps {
   color?: string;
   /** Sepet ve siparis satirlarinda gosterilecek birincil gorsel. */
   pictureUrl?: string | null;
+  /** Secilen katalog varyant id'si (opsiyonel, geriye uyumlu). */
+  variantId?: string | null;
 }
 
 interface Props {
@@ -42,6 +44,7 @@ interface BasketItem {
   productId: string;
   productName: string;
   pictureUrl?: string | null;
+  variantId?: string | null;
 }
 
 export default function AddToCartButton({
@@ -56,21 +59,26 @@ export default function AddToCartButton({
   const [added, setAdded] = useState(false);
   const { user } = useAuth();
   const { refreshCartCount } = useCart();
-  const router = useRouter();
 
   const handleAddToCart = async () => {
-    if (!user) {
-      router.push("/login");
-      return;
-    }
-
     setLoading(true);
     const apiBase = API_URL;
-    const userName = user.id;
-    const color = product.color?.trim() || "Standart";
-    const amount = Math.max(1, quantity);
 
     try {
+      let userName = user?.id;
+      if (!userName) {
+        const guest = await ensureGuestSession();
+        userName = guest?.guestId;
+      }
+      if (!userName) {
+        notify.error("Sepet oturumu açılamadı. Lütfen sayfayı yenileyin.");
+        return;
+      }
+
+      const color = product.color?.trim() || "Standart";
+      const amount = Math.max(1, quantity);
+      const variantId = product.variantId ?? null;
+
       const getRes = await fetch(`${apiBase}/basket/${userName}`, {
         headers: authHeaders(),
       });
@@ -79,12 +87,16 @@ export default function AddToCartButton({
 
       // Ayni urunun farkli varyanti sepette ayri satir olur
       const idx = items.findIndex(
-        (i) => i.productId === product.id && (i.color ?? "Standart") === color,
+        (i) =>
+          i.productId === product.id &&
+          (i.color ?? "Standart") === color &&
+          (i.variantId ?? null) === variantId,
       );
 
       if (idx >= 0) {
         items[idx].quantity += amount;
         items[idx].pictureUrl ??= product.pictureUrl ?? null;
+        items[idx].variantId ??= variantId;
       } else {
         items.push({
           quantity: amount,
@@ -93,6 +105,7 @@ export default function AddToCartButton({
           productId: product.id,
           productName: product.name,
           pictureUrl: product.pictureUrl ?? null,
+          variantId,
         });
       }
 
@@ -112,8 +125,7 @@ export default function AddToCartButton({
         const raw = await res.text().catch(() => "");
         notify.error(parseApiError(raw, "Ürün sepete eklenemedi. Lütfen tekrar deneyin."));
       }
-    } catch (error) {
-      console.error("Bağlantı hatası:", error);
+    } catch {
       notify.error("Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin.");
     } finally {
       setLoading(false);

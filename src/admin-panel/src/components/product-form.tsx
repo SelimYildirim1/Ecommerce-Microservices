@@ -8,7 +8,7 @@ import type {
   Product,
   ProductImagePayload,
 } from "@/lib/api";
-import { useForm, useFieldArray, type UseFormRegister } from "react-hook-form";
+import { useForm, useFieldArray, Controller, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +22,10 @@ import { ImageManager } from "@/components/image-manager";
 import { Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+
+/** Renk tipi için varsayılan seçenekler (DB'de Options boşsa). */
+const DEFAULT_COLOR_OPTIONS =
+  "Siyah,Beyaz,Gri,Kırmızı,Mavi,Yeşil,Sarı,Turuncu,Pembe,Mor,Kahverengi,Bej,Lacivert,Bordo,Çok Renkli";
 
 const variantSchema = z.object({
   id: z.string().optional(),
@@ -304,6 +308,28 @@ function ProductFormReady({
         </CardContent>
       </Card>
 
+      {selectedCategoryId && attributes.length === 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Kategori Özellikleri</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm text-muted-foreground">
+            <p>
+              Bu kategoriye henüz özellik atanmamış. Varyant seçenekleri (Renk, Beden
+              vb.) için önce{" "}
+              <Link href="/attributes" className="text-foreground underline">
+                Özellikler
+              </Link>{" "}
+              tanımlayıp{" "}
+              <Link href="/categories" className="text-foreground underline">
+                Kategoriler
+              </Link>{" "}
+              sayfasından bu kategoriye atayın.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {attributes.length > 0 && (
         <Card>
           <CardHeader>
@@ -312,8 +338,8 @@ function ProductFormReady({
               <Badge variant="secondary">{categoryDetail?.name}</Badge>
             </CardTitle>
             <p className="text-sm text-muted-foreground">
-              Bu özellikler seçilen kategoriye göre otomatik yüklendi. Varyant özellikleri
-              her varyant için ayrı girilir.
+              Özellikler /admin/attributes üzerinden tanımlanır ve kategoriye
+              atanır. Varyant özellikleri her varyant satırında listeden seçilir.
             </p>
           </CardHeader>
           <CardContent>
@@ -327,7 +353,7 @@ function ProductFormReady({
                     <DynamicAttributeField
                       key={attr.attributeId}
                       attribute={attr}
-                      register={register}
+                      control={control}
                       fieldPath={`variants.0.specifics.${attr.attributeCode}`}
                     />
                   ))}
@@ -341,7 +367,7 @@ function ProductFormReady({
                   {variantAttributes.map((a) => a.attributeName).join(", ")}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Bu özellikler aşağıdaki her varyant satırında ayrı ayrı girilecek.
+                  Aşağıdaki her varyant satırında bu özelliklerden seçim yapılır.
                 </p>
               </div>
             )}
@@ -435,7 +461,7 @@ function ProductFormReady({
                       <DynamicAttributeField
                         key={`${field.id}-${attr.attributeId}`}
                         attribute={attr}
-                        register={register}
+                        control={control}
                         fieldPath={`variants.${index}.specifics.${attr.attributeCode}`}
                       />
                     ))}
@@ -495,21 +521,34 @@ function ProductFormReady({
 }
 
 /**
- * Kategoriden gelen ozellik tipine gore uygun input bilesenini render eder.
- * DataType: Text → Input, Number → number, Select → <select>, Color → color, Boolean → checkbox
+ * Kategoriden gelen ozellik tipine gore uygun input.
+ * Select/Color → liste seçimi (ürün varyantları isimle tutulur; hex color input kullanılmaz).
  */
 function DynamicAttributeField({
   attribute,
-  register,
+  control,
   fieldPath,
 }: {
   attribute: CategoryAttribute;
-  register: UseFormRegister<ProductFormValues>;
+  control: Control<ProductFormValues>;
   fieldPath: string;
 }) {
   const { attributeName, dataType, options, isRequired } = attribute;
-  // Dinamik yol; react-hook-form tip cikarimini burada yapamaz
-  const field = register(fieldPath as never);
+
+  const selectOptions = useMemo(() => {
+    const raw =
+      options?.trim() ||
+      (dataType === "Color" || attribute.attributeCode === "color"
+        ? DEFAULT_COLOR_OPTIONS
+        : "");
+    return raw
+      ? raw.split(",").map((o) => o.trim()).filter(Boolean)
+      : [];
+  }, [options, dataType, attribute.attributeCode]);
+
+  const useSelect =
+    selectOptions.length > 0 &&
+    (dataType === "Select" || dataType === "Color" || attribute.attributeCode === "color");
 
   return (
     <div className="space-y-1">
@@ -523,27 +562,76 @@ function DynamicAttributeField({
         )}
       </Label>
 
-      {dataType === "Select" && options ? (
-        <select {...field} className="w-full rounded-md border px-3 py-2 text-sm">
-          <option value="">Seçiniz...</option>
-          {options.split(",").map((opt) => (
-            <option key={opt.trim()} value={opt.trim()}>
-              {opt.trim()}
-            </option>
-          ))}
-        </select>
-      ) : dataType === "Number" ? (
-        <Input type="number" {...field} />
-      ) : dataType === "Color" ? (
-        <Input type="color" {...field} className="h-10 w-20" />
-      ) : dataType === "Boolean" ? (
-        <div className="flex items-center gap-2">
-          <input type="checkbox" {...field} className="h-4 w-4" />
-          <span className="text-sm text-muted-foreground">{attributeName}</span>
-        </div>
-      ) : (
-        <Input {...field} placeholder={attributeName} />
-      )}
+      <Controller
+        control={control}
+        name={fieldPath as never}
+        render={({ field }) => {
+          const value = field.value == null ? "" : String(field.value);
+
+          if (useSelect) {
+            const known = selectOptions.includes(value);
+            return (
+              <select
+                className="w-full rounded-md border px-3 py-2 text-sm"
+                value={value}
+                onChange={(e) => field.onChange(e.target.value)}
+                onBlur={field.onBlur}
+                ref={field.ref}
+              >
+                <option value="">Seçiniz...</option>
+                {!known && value ? (
+                  <option value={value}>{value} (kayıtlı)</option>
+                ) : null}
+                {selectOptions.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            );
+          }
+
+          if (dataType === "Number") {
+            return (
+              <Input
+                type="number"
+                value={value}
+                onChange={(e) => field.onChange(e.target.value)}
+                onBlur={field.onBlur}
+                ref={field.ref}
+              />
+            );
+          }
+
+          if (dataType === "Boolean") {
+            return (
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={value === "true" || value === "1"}
+                  onChange={(e) =>
+                    field.onChange(e.target.checked ? "true" : "false")
+                  }
+                  onBlur={field.onBlur}
+                  ref={field.ref}
+                />
+                <span className="text-sm text-muted-foreground">{attributeName}</span>
+              </div>
+            );
+          }
+
+          return (
+            <Input
+              value={value}
+              onChange={(e) => field.onChange(e.target.value)}
+              onBlur={field.onBlur}
+              ref={field.ref}
+              placeholder={attributeName}
+            />
+          );
+        }}
+      />
     </div>
   );
 }

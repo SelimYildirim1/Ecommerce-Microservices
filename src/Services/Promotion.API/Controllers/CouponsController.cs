@@ -152,6 +152,58 @@ public class CouponsController : ControllerBase
         return Ok(best ?? Fail("Uygulanabilir kampanya yok."));
     }
 
+    /// <summary>Vitrin: aktif kampanyalar (geri sayım için).</summary>
+    [HttpGet("/api/campaigns/active")]
+    public async Task<IActionResult> GetActiveCampaigns([FromQuery] int take = 6)
+    {
+        take = Math.Clamp(take, 1, 20);
+        var now = DateTime.UtcNow;
+        var items = await _context.Campaigns
+            .AsNoTracking()
+            .Where(c => c.IsActive && c.ValidFrom <= now && c.ValidTo >= now)
+            .OrderByDescending(c => c.Priority)
+            .ThenBy(c => c.ValidTo)
+            .Take(take)
+            .Select(c => new
+            {
+                c.Id,
+                c.Name,
+                c.Description,
+                DiscountType = c.DiscountType.ToString(),
+                c.Value,
+                c.ValidFrom,
+                c.ValidTo,
+                c.MinBasketAmount
+            })
+            .ToListAsync();
+        return Ok(items);
+    }
+
+    /// <summary>Vitrin: herkese açık kupon banner'ları (kod gösterilir).</summary>
+    [HttpGet("featured")]
+    public async Task<IActionResult> GetFeaturedCoupons([FromQuery] int take = 3)
+    {
+        take = Math.Clamp(take, 1, 10);
+        var now = DateTime.UtcNow;
+        var items = await _context.Coupons
+            .AsNoTracking()
+            .Where(c => c.IsActive && c.ValidFrom <= now && c.ValidTo >= now
+                        && (c.UsageLimit == 0 || c.UsedCount < c.UsageLimit))
+            .OrderByDescending(c => c.Value)
+            .Take(take)
+            .Select(c => new
+            {
+                c.Code,
+                c.Description,
+                DiscountType = c.DiscountType.ToString(),
+                c.Value,
+                c.MinBasketAmount,
+                c.ValidTo
+            })
+            .ToListAsync();
+        return Ok(items);
+    }
+
     private static DiscountResultDto Fail(string message)
         => new(false, null, null, 0, DiscountType.FixedAmount.ToString(), false, message);
 }

@@ -2,6 +2,12 @@ import Header from "@/components/Header";
 import ProductGallery from "@/components/ProductGallery";
 import ProductPurchasePanel from "@/components/ProductPurchasePanel";
 import ProductReviews from "@/components/ProductReviews";
+import ProductQnA from "@/components/ProductQnA";
+import ProductSpecs from "@/components/ProductSpecs";
+import RelatedProducts from "@/components/RelatedProducts";
+import InstallmentTable from "@/components/InstallmentTable";
+import RecentlyViewed from "@/components/RecentlyViewed";
+import RecentlyViewedTracker from "@/components/RecentlyViewedTracker";
 import StarRating from "@/components/StarRating";
 import Link from "next/link";
 import {
@@ -13,10 +19,15 @@ import {
   Truck,
 } from "lucide-react";
 import { serverFetchJson } from "@/lib/server-fetch";
-import { getImageUrl, type Product } from "@/lib/catalog";
+import { getImageUrl, getPrice, type Product } from "@/lib/catalog";
+import { getRelatedProducts } from "@/lib/brands";
+import { getSiteSettings } from "@/lib/cms";
+import { breadcrumbJsonLd } from "@/lib/jsonld";
 
 async function getProduct(id: string): Promise<Product | null> {
-  return serverFetchJson<Product | null>(`/catalog/products/${id}`, null);
+  return serverFetchJson<Product | null>(`/catalog/products/${id}`, null, {
+    revalidate: 60,
+  });
 }
 
 export async function generateMetadata({
@@ -27,9 +38,21 @@ export async function generateMetadata({
   const { id } = await params;
   const product = await getProduct(id);
   if (!product) return { title: "Ürün bulunamadı" };
+  const title = product.metaTitle || product.name;
+  const description =
+    product.metaDescription || product.description?.slice(0, 160);
+  const image = getImageUrl(product);
   return {
-    title: product.metaTitle || `${product.name} | Yıldırım Store`,
-    description: product.metaDescription || product.description?.slice(0, 160),
+    title,
+    description,
+    alternates: { canonical: `/products/${product.id}` },
+    openGraph: {
+      title,
+      description: description ?? undefined,
+      url: `/products/${product.id}`,
+      type: "website",
+      images: image ? [image] : undefined,
+    },
   };
 }
 
@@ -39,7 +62,11 @@ export default async function ProductDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const product = await getProduct(id);
+  const [product, related, settings] = await Promise.all([
+    getProduct(id),
+    getRelatedProducts(id, 8),
+    getSiteSettings(),
+  ]);
 
   if (!product) {
     return (
@@ -66,10 +93,92 @@ export default async function ProductDetailPage({
   }
 
   const reviewCount = product.reviewCount ?? 0;
+  const imageUrl = getImageUrl(product);
+  const price = getPrice(product);
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const brandSlug = product.brandName
+    ? product.brandName
+        .toLowerCase()
+        .replace(/[ıİ]/g, "i")
+        .replace(/[ğĞ]/g, "g")
+        .replace(/[üÜ]/g, "u")
+        .replace(/[şŞ]/g, "s")
+        .replace(/[öÖ]/g, "o")
+        .replace(/[çÇ]/g, "c")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")
+    : null;
+
+  const sameCategory = related.filter((p) => p.categoryId === product.categoryId).slice(0, 4);
+  const similar = related.slice(0, 4);
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    description: product.description?.slice(0, 300) || undefined,
+    image: imageUrl || undefined,
+    sku: product.id,
+    brand: product.brandName
+      ? { "@type": "Brand", name: product.brandName }
+      : undefined,
+    offers: {
+      "@type": "Offer",
+      url: `${siteUrl}/products/${product.id}`,
+      priceCurrency: "TRY",
+      price: product.price,
+      availability:
+        (product.stock ?? 0) > 0
+          ? "https://schema.org/InStock"
+          : "https://schema.org/OutOfStock",
+    },
+    ...(reviewCount > 0 && product.averageRating
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: product.averageRating,
+            reviewCount,
+          },
+        }
+      : {}),
+  };
+
+  const crumbLd = breadcrumbJsonLd(
+    [
+      { name: "Anasayfa", url: "/" },
+      { name: "Tüm Ürünler", url: "/products" },
+      ...(product.categoryId && product.categoryName
+        ? [
+            {
+              name: product.categoryName,
+              url: `/products?category=${product.categoryId}`,
+            },
+          ]
+        : []),
+      { name: product.name, url: `/products/${product.id}` },
+    ],
+    siteUrl,
+  );
 
   return (
     <div className="bg-white text-gray-900">
       <Header />
+
+      <RecentlyViewedTracker
+        id={product.id}
+        name={product.name}
+        image={product.primaryImageUrl}
+        price={price}
+      />
+
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(crumbLd) }}
+      />
 
       <div className="border-b border-gray-100">
         <div className="mx-auto max-w-[1600px] px-6 py-3 md:px-12">
@@ -111,7 +220,7 @@ export default async function ProductDetailPage({
           <div className="flex flex-col">
             {product.brandName && (
               <Link
-                href={product.brandId ? `/products?brand=${product.brandId}` : "/products"}
+                href={brandSlug ? `/marka/${brandSlug}` : "/products"}
                 className="w-fit text-sm font-semibold uppercase tracking-wide text-gray-400 transition-colors hover:text-gray-900"
               >
                 {product.brandName}
@@ -139,6 +248,11 @@ export default async function ProductDetailPage({
               <ProductPurchasePanel product={product} />
             </div>
 
+            <InstallmentTable
+              price={price}
+              ratesJson={settings["commerce.installmentRates"]}
+            />
+
             <div className="mt-8">
               <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider">
                 Ürün Açıklaması
@@ -147,6 +261,8 @@ export default async function ProductDetailPage({
                 {product.description || "Bu ürün için henüz bir açıklama eklenmemiş."}
               </p>
             </div>
+
+            <ProductSpecs product={product} />
 
             <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Feature icon={Truck} title="Ücretsiz Kargo" note="500 TL ve üzeri" />
@@ -157,8 +273,12 @@ export default async function ProductDetailPage({
         </div>
 
         <ProductReviews productId={product.id} />
+        <ProductQnA productId={product.id} />
+        <RelatedProducts title="Benzer ürünler" products={similar} />
+        <RelatedProducts title="Aynı kategoriden" products={sameCategory} />
       </main>
 
+      <RecentlyViewed excludeId={product.id} />
     </div>
   );
 }

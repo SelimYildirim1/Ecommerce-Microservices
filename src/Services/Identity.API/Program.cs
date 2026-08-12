@@ -2,10 +2,12 @@ using Identity.API.Data;
 using Identity.API.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
 using System.Text;
+using System.Threading.RateLimiting;
 using Serilog;
 using Prometheus;
 using OpenTelemetry.Resources;
@@ -101,7 +103,41 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy =>
+        policy.RequireRole(IdentityRoles.Admin));
+
+    options.AddPolicy("EditorOrAdmin", policy =>
+        policy.RequireRole(IdentityRoles.Admin, IdentityRoles.Editor));
+
+    options.AddPolicy("SupportOrAdmin", policy =>
+        policy.RequireRole(IdentityRoles.Admin, IdentityRoles.Support));
+
+    options.AddPolicy("WarehouseOrAdmin", policy =>
+        policy.RequireRole(IdentityRoles.Admin, IdentityRoles.Warehouse));
+
+    options.AddPolicy("Staff", policy =>
+        policy.RequireRole(IdentityRoles.Staff));
+});
+builder.Services.AddHttpClient();
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddFixedWindowLimiter("guest", limiter =>
+    {
+        limiter.PermitLimit = 20;
+        limiter.Window = TimeSpan.FromMinutes(1);
+        limiter.QueueLimit = 0;
+    });
+    options.AddFixedWindowLimiter("auth-sensitive", limiter =>
+    {
+        limiter.PermitLimit = 10;
+        limiter.Window = TimeSpan.FromMinutes(1);
+        limiter.QueueLimit = 0;
+    });
+});
 
 builder.Services.AddMassTransit(config =>
 {
@@ -142,7 +178,8 @@ if (app.Environment.IsDevelopment())
 }
 
 // Authentication (Kimlik Doğrulama) Middleware'i - Authorization'dan ÖNCE olmalı
-app.UseAuthentication(); 
+app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapControllers();

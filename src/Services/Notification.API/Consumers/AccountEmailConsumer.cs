@@ -26,11 +26,16 @@ public class AccountEmailConsumer : IConsumer<AccountEmailEvent>
 public class OrderShippedConsumer : IConsumer<OrderShippedEvent>
 {
     private readonly IEmailSender _emailSender;
+    private readonly IEmailTemplateService _templates;
     private readonly ILogger<OrderShippedConsumer> _logger;
 
-    public OrderShippedConsumer(IEmailSender emailSender, ILogger<OrderShippedConsumer> logger)
+    public OrderShippedConsumer(
+        IEmailSender emailSender,
+        IEmailTemplateService templates,
+        ILogger<OrderShippedConsumer> logger)
     {
         _emailSender = emailSender;
+        _templates = templates;
         _logger = logger;
     }
 
@@ -39,8 +44,18 @@ public class OrderShippedConsumer : IConsumer<OrderShippedEvent>
         var msg = context.Message;
         if (string.IsNullOrWhiteSpace(msg.Email)) return;
 
-        var (subject, body) = EmailTemplates.OrderShipped(msg.OrderId, msg.TrackingNumber);
-        _logger.LogInformation("OrderShippedEvent -> {Email} OrderId={OrderId}", msg.Email, msg.OrderId);
+        var vars = new Dictionary<string, string?>
+        {
+            ["OrderId"] = msg.OrderId.ToString(),
+            ["OrderNumber"] = msg.OrderNumber,
+            ["TrackingNumber"] = msg.TrackingNumber
+        };
+
+        var rendered = await _templates.TryRenderAsync("OrderShipped", vars, context.CancellationToken);
+        var (subject, body) = rendered ?? EmailTemplates.OrderShipped(msg.OrderId, msg.TrackingNumber, msg.OrderNumber);
+
+        _logger.LogInformation("OrderShippedEvent -> {Email} OrderId={OrderId} OrderNumber={OrderNumber}",
+            msg.Email, msg.OrderId, msg.OrderNumber);
         await _emailSender.SendAsync(msg.Email, subject, body);
     }
 }

@@ -19,6 +19,17 @@ public class ProductReview : BaseEntity
     public bool IsApproved { get; set; }
 
     public string? ModeratorNote { get; set; }
+
+    /// <summary>Kullanıcı bu ürünü gerçekten satın almış mı.</summary>
+    public bool IsVerifiedPurchase { get; set; }
+
+    public int HelpfulCount { get; set; }
+    public int NotHelpfulCount { get; set; }
+
+    /// <summary>Yorum fotoğrafları (JSON dizi: string[]).</summary>
+    public string? ImageUrls { get; set; }
+
+    public ICollection<ReviewVote> Votes { get; set; } = new List<ReviewVote>();
 }
 
 /// <summary>Kullanicinin favori urun listesi.</summary>

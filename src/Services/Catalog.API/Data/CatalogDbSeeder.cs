@@ -206,6 +206,16 @@ public static class CatalogDbSeeder
             ("site.address", "Levent Mah. Teknoloji Cad. No:1, İstanbul", "general"),
             ("commerce.currency", "TRY", "commerce"),
             ("commerce.freeShippingThreshold", "500", "commerce"),
+            ("commerce.installmentRates", "{\"3\":0,\"6\":0.02,\"9\":0.04,\"12\":0.06}", "payment"),
+            ("commerce.transferAccounts", "[{\"bank\":\"Ziraat Bankası\",\"iban\":\"TR00 0000 0000 0000 0000 0000 00\",\"holder\":\"Yıldırım Store\"}]", "payment"),
+            ("commerce.codFee", "14.90", "payment"),
+            ("commerce.codEnabled", "true", "payment"),
+            ("commerce.vatRate", "20", "tax"),
+            ("commerce.pricesIncludeVat", "true", "tax"),
+            ("seo.defaultTitle", "Yıldırım Store", "seo"),
+            ("seo.defaultDescription", "En yeni ürünler, en uygun fiyatlarla sizi bekliyor.", "seo"),
+            ("seo.titleSuffix", " | Yıldırım Store", "seo"),
+            ("commerce.loyaltyEarnRate", "0.01", "commerce"),
             ("social.instagram", "https://instagram.com", "social"),
             ("social.twitter", "https://x.com", "social"),
         };
@@ -215,6 +225,101 @@ public static class CatalogDbSeeder
             if (await context.SiteSettings.AnyAsync(s => s.Key == key, ct)) continue;
 
             context.SiteSettings.Add(new SiteSetting { Key = key, Value = value, Group = group });
+            changed = true;
+        }
+
+        if (await SeedEcommerceBlogPackAsync(context, ct))
+            changed = true;
+
+        if (!await context.NavMenus.AnyAsync(ct))
+        {
+            var header = new NavMenu { Name = "Ana Menü", Location = "header", IsActive = true };
+            var footer = new NavMenu { Name = "Footer Menü", Location = "footer", IsActive = true };
+            context.NavMenus.AddRange(header, footer);
+            await context.SaveChangesAsync(ct);
+
+            context.NavMenuItems.AddRange(
+                new NavMenuItem { NavMenuId = header.Id, Label = "Ürünler", Url = "/products", LinkType = "custom", SortOrder = 0 },
+                new NavMenuItem { NavMenuId = header.Id, Label = "Blog", Url = "/blog", LinkType = "custom", SortOrder = 1 },
+                new NavMenuItem { NavMenuId = header.Id, Label = "SSS", Url = "/sss", LinkType = "custom", SortOrder = 2 },
+                new NavMenuItem { NavMenuId = header.Id, Label = "İletişim", Url = "/iletisim", LinkType = "custom", SortOrder = 3 },
+                new NavMenuItem { NavMenuId = footer.Id, Label = "Tüm ürünler", Url = "/products", LinkType = "custom", SortOrder = 0 },
+                new NavMenuItem { NavMenuId = footer.Id, Label = "Sipariş takip", Url = "/siparis-takip", LinkType = "custom", SortOrder = 1 },
+                new NavMenuItem { NavMenuId = footer.Id, Label = "SSS", Url = "/sss", LinkType = "custom", SortOrder = 2 },
+                new NavMenuItem { NavMenuId = footer.Id, Label = "İletişim", Url = "/iletisim", LinkType = "custom", SortOrder = 3 },
+                new NavMenuItem { NavMenuId = footer.Id, Label = "Blog", Url = "/blog", LinkType = "custom", SortOrder = 4 }
+            );
+            changed = true;
+        }
+
+        if (!await context.Currencies.AnyAsync(ct))
+        {
+            context.Currencies.AddRange(
+                new Currency
+                {
+                    Code = "TRY",
+                    Symbol = "₺",
+                    Name = "Türk Lirası",
+                    RateToBase = 1m,
+                    IsDefault = true,
+                    IsActive = true
+                },
+                new Currency
+                {
+                    Code = "USD",
+                    Symbol = "$",
+                    Name = "US Dollar",
+                    RateToBase = 34.50m,
+                    IsDefault = false,
+                    IsActive = true
+                },
+                new Currency
+                {
+                    Code = "EUR",
+                    Symbol = "€",
+                    Name = "Euro",
+                    RateToBase = 37.00m,
+                    IsDefault = false,
+                    IsActive = true
+                });
+            changed = true;
+        }
+
+        if (!await context.FaqItems.AnyAsync(ct))
+        {
+            context.FaqItems.AddRange(
+                new FaqItem
+                {
+                    Category = "Sipariş",
+                    Question = "Siparişimi nasıl takip ederim?",
+                    Answer = "<p>Hesabınızdaki <strong>Siparişlerim</strong> sayfasından kargo durumunu ve takip numarasını görebilirsiniz.</p>",
+                    SortOrder = 1,
+                    IsPublished = true
+                },
+                new FaqItem
+                {
+                    Category = "Kargo",
+                    Question = "Kargo ücreti ne kadar?",
+                    Answer = "<p>500 TL ve üzeri siparişlerde kargo ücretsizdir. Altındaki siparişlerde güncel kargo ücreti ödeme adımında gösterilir.</p>",
+                    SortOrder = 2,
+                    IsPublished = true
+                },
+                new FaqItem
+                {
+                    Category = "İade",
+                    Question = "İade süresi kaç gün?",
+                    Answer = "<p>Teslim tarihinden itibaren <strong>14 gün</strong> içinde iade talebi oluşturabilirsiniz. Ürünün kullanılmamış ve orijinal ambalajında olması gerekir.</p>",
+                    SortOrder = 3,
+                    IsPublished = true
+                },
+                new FaqItem
+                {
+                    Category = "Ödeme",
+                    Question = "Hangi ödeme yöntemlerini kullanabilirim?",
+                    Answer = "<p>Kredi/banka kartı ile güvenli ödeme yapabilirsiniz. Ödeme işlemi 3D Secure ile korunur.</p>",
+                    SortOrder = 4,
+                    IsPublished = true
+                });
             changed = true;
         }
 
@@ -251,7 +356,7 @@ public static class CatalogDbSeeder
     {
         return new List<ProductAttribute>
         {
-            new() { Name = "Renk", Code = "color", DataType = "Color", IsRequired = true, IsVariant = true },
+            new() { Name = "Renk", Code = "color", DataType = "Select", Options = "Siyah,Beyaz,Gri,Kırmızı,Mavi,Yeşil,Sarı,Turuncu,Pembe,Mor,Kahverengi,Bej,Lacivert,Bordo,Gümüş,Altın,Natürel,Uzay Grisi,Krem,Pastel,Turkuaz,Mint,Şeffaf,Çok Renkli", IsRequired = true, IsVariant = true },
             new() { Name = "Beden", Code = "size", DataType = "Select", Options = "XS,S,M,L,XL,XXL", IsRequired = true, IsVariant = true },
             new() { Name = "Numara", Code = "shoe_size", DataType = "Select", Options = "36,37,38,39,40,41,42,43,44,45", IsRequired = true, IsVariant = true },
             new() { Name = "Kumaş", Code = "fabric", DataType = "Select", Options = "Pamuk,Polyester,Keten,Yün,Denim", IsRequired = false, IsVariant = false },
@@ -788,5 +893,271 @@ public static class CatalogDbSeeder
         }
 
         return builder.ToString().Trim('-');
+    }
+
+    /// <summary>
+    /// E-ticaret odaklı blog paketini tamamlar (kategori, etiket, 20 yazı).
+    /// Mevcut yazılara dokunmaz; eksik slug'ları ekler.
+    /// </summary>
+    private static async Task<bool> SeedEcommerceBlogPackAsync(CatalogDbContext context, CancellationToken ct)
+    {
+        var changed = false;
+        var now = DateTime.UtcNow;
+
+        async Task<BlogCategory> EnsureCategory(string name, string slug, string description, int sort)
+        {
+            var existing = await context.BlogCategories.FirstOrDefaultAsync(c => c.Slug == slug, ct);
+            if (existing != null) return existing;
+            var cat = new BlogCategory
+            {
+                Name = name,
+                Slug = slug,
+                Description = description,
+                SortOrder = sort,
+                UpdatedAt = now
+            };
+            context.BlogCategories.Add(cat);
+            await context.SaveChangesAsync(ct);
+            changed = true;
+            return cat;
+        }
+
+        async Task<BlogTag> EnsureTag(string name, string slug)
+        {
+            var existing = await context.BlogTags.FirstOrDefaultAsync(t => t.Slug == slug, ct);
+            if (existing != null) return existing;
+            var tag = new BlogTag { Name = name, Slug = slug, UpdatedAt = now };
+            context.BlogTags.Add(tag);
+            await context.SaveChangesAsync(ct);
+            changed = true;
+            return tag;
+        }
+
+        var catGrowth = await EnsureCategory("E-Ticaret Büyüme", "e-ticaret-buyume", "Satış ve büyüme stratejileri", 1);
+        var catUx = await EnsureCategory("Dönüşüm & UX", "donusum-ux", "Ürün sayfası ve sepet deneyimi", 2);
+        var catOps = await EnsureCategory("Operasyon", "operasyon", "Lojistik, stok ve müşteri hizmetleri", 3);
+        var catMarketing = await EnsureCategory("Pazarlama", "pazarlama", "Kampanya, SEO ve e-posta pazarlama", 4);
+        var catTips = await EnsureCategory("Alışveriş İpuçları", "alisveris-ipuclari", "Akıllı alışveriş için rehberler", 5);
+
+        var tagRehber = await EnsureTag("Rehber", "rehber");
+        var tagEticaret = await EnsureTag("E-Ticaret", "e-ticaret");
+        var tagSeo = await EnsureTag("SEO", "seo");
+        var tagDonusum = await EnsureTag("Dönüşüm", "donusum");
+        var tagKampanya = await EnsureTag("Kampanya", "kampanya");
+        var tagLojistik = await EnsureTag("Lojistik", "lojistik");
+        var tagDuyuru = await EnsureTag("Duyuru", "duyuru");
+
+        // Unsplash — e-ticaret / alışveriş temalı sabit görseller
+        string Img(string id) => $"https://images.unsplash.com/{id}?auto=format&fit=crop&w=1400&q=80";
+
+        var posts = new (string Title, string Slug, string Excerpt, string Content, string Cover, string Author, int Minutes, bool Featured, int DaysAgo, int Views, BlogCategory Cat, BlogTag[] Tags)[]
+        {
+            (
+                "2026 E-Ticaret Trendleri: Satışı Büyüten 10 Strateji",
+                "2026-e-ticaret-trendleri-satisi-buyuten-10-strateji",
+                "Yapay zeka önerileri, hızlı teslimat ve kişiselleştirme ile büyüyen mağazaların ortak noktaları.",
+                "<h2>Neden trendler önemli?</h2><p>E-ticaret rekabeti arttıkça müşteri beklentisi de yükseliyor. 2026’da kazanan mağazalar hız, güven ve kişiselleştirme sunuyor.</p><h2>Öne çıkan 10 strateji</h2><ol><li>Ürün öneri motorları</li><li>Tek tıkla yeniden satın alma</li><li>Şeffaf kargo takibi</li><li>Video içerikli ürün sayfaları</li><li>Mobil öncelikli ödeme</li><li>Sadakat puanı entegrasyonu</li><li>Canlı destek ve SSS</li><li>Sosyal kanıt (yorum &amp; Q&amp;A)</li><li>Sürdürülebilir paketleme</li><li>Omnichannel deneyim</li></ol><h3>Nasıl başlanır?</h3><p>Önce en yüksek etkili 3 maddiyi seçin, ölçün ve ölçekleyin.</p>",
+                Img("photo-1556742049-0cfed4f6a45d"),
+                "Yıldırım Store", 7, true, 1, 420, catGrowth, new[] { tagEticaret, tagRehber }
+            ),
+            (
+                "Ürün Sayfası Optimizasyonu: Dönüşümü Artıran Kontrol Listesi",
+                "urun-sayfasi-optimizasyonu-donusumu-artiran-kontrol-listesi",
+                "Başlık, görseller, fiyat ve CTA yerleşimiyle ürün sayfanızı satışa çevirin.",
+                "<h2>İlk izlenim 3 saniyede oluşur</h2><p>Ziyaretçi ürünü hemen anlamalı: ne, kim için, neden sizin mağazanız.</p><h2>Kontrol listesi</h2><ul><li>Net ürün başlığı ve varyant seçimi</li><li>Yüksek çözünürlüklü galeri</li><li>Görünür stok ve teslimat süresi</li><li>Güven rozetleri</li><li>Yorum özeti ve soru-cevap</li></ul><h3>CTA ipucu</h3><p>“Sepete ekle” butonu kaydırırken de görünür kalsın.</p>",
+                Img("photo-1460925895917-afdab827c52f"),
+                "Ayşe Demir", 6, true, 2, 380, catUx, new[] { tagDonusum, tagRehber }
+            ),
+            (
+                "Sepet Terk Oranını Düşürmenin 8 Pratik Yolu",
+                "sepet-terk-oranini-dusurmenin-8-pratik-yolu",
+                "Ödeme sürtünmesini azaltın, güven artırın ve terk edilen sepetleri geri kazanın.",
+                "<h2>Sepet neden terk edilir?</h2><p>Beklenmeyen kargo ücreti, uzun formlar ve güvensizlik en sık nedenler.</p><h2>8 pratik yol</h2><ol><li>Ücretsiz kargo eşiğini net gösterin</li><li>Misafir ödeme sunun</li><li>Adım adım ilerleme çubuğu</li><li>Kupon alanını sadeleştirin</li><li>Ödeme yöntemlerini görünür yapın</li><li>Mobil klavye tipini doğru seçin</li><li>Terk e-postası / bildirim</li><li>Canlı stok uyarısı</li></ol>",
+                Img("photo-1607082349566-187342175e2f"),
+                "Mehmet Kaya", 5, false, 3, 310, catUx, new[] { tagDonusum, tagEticaret }
+            ),
+            (
+                "E-Ticarette Ücretsiz Kargo Eşiği Nasıl Belirlenir?",
+                "e-ticarette-ucretsiz-kargo-esigi-nasil-belirlenir",
+                "Ortalama sepet tutarı ve marjınıza göre kargo eşiğini akıllıca ayarlayın.",
+                "<h2>Eşik stratejisi</h2><p>Çok düşük eşik marjı eritir; çok yüksek eşik dönüşümü düşürür.</p><h3>Hesaplama önerisi</h3><p>Ortalama sepetin %10–20 üzerinde bir eşik ile başlayın ve A/B test edin.</p>",
+                Img("photo-1586528116311-ad8dd3c8310d"),
+                "Yıldırım Store", 4, false, 4, 260, catOps, new[] { tagLojistik, tagRehber }
+            ),
+            (
+                "Müşteri Yorumları Satışı Nasıl Etkiler?",
+                "musteri-yorumlari-satisi-nasil-etkiler",
+                "Sosyal kanıt, güven ve ürün sayfası dönüşümü arasındaki ilişki.",
+                "<h2>Yorum = güven sinyali</h2><p>Özellikle ilk alışverişte yorumlar karar sürecini kısaltır.</p><h2>İyi uygulamalar</h2><ul><li>Fotoğraflı yorumları öne çıkarın</li><li>Olumsuz yorumlara yapıcı yanıt verin</li><li>Satın alma sonrası yorum hatırlatması gönderin</li></ul>",
+                Img("photo-1516321318423-f06f85e504b3"),
+                "Elif Yılmaz", 5, false, 5, 240, catUx, new[] { tagDonusum, tagRehber }
+            ),
+            (
+                "E-Ticaret SEO: Kategori ve Ürün Sayfası Rehberi",
+                "e-ticaret-seo-kategori-ve-urun-sayfasi-rehberi",
+                "Arama motorlarında görünürlük için teknik ve içerik temelleri.",
+                "<h2>Temel SEO mimarisi</h2><p>Benzersiz başlıklar, temiz URL’ler ve hızlı sayfalar şart.</p><h3>Ürün içeriği</h3><p>Kopyala-yapıştır açıklamalardan kaçının; özellik tablosu ve SSS ekleyin.</p><h3>Teknik kontrol</h3><p>Sitemap, canonical ve yapılandırılmış veri (Product) kullanın.</p>",
+                Img("photo-1432888498266-38ffec3eaf0a"),
+                "Can Öztürk", 8, false, 6, 290, catMarketing, new[] { tagSeo, tagEticaret }
+            ),
+            (
+                "Kampanya Takvimi: Black Friday’den Ramazan’a Satış Planı",
+                "kampanya-takvimi-black-fridayden-ramazana-satis-plani",
+                "Yıllık dönemlere göre stok, iletişim ve indirim kurgusu.",
+                "<h2>Planlama disiplini</h2><p>Kampanyayı son haftaya bırakmak stok ve lojistik riski yaratır.</p><ol><li>Hedef ciro ve marj</li><li>Ürün seçimi</li><li>Kreatif &amp; landing</li><li>Kupon kuralları</li><li>Operasyon kapasitesi</li></ol>",
+                Img("photo-1607082348824-0a96f2a4b9da"),
+                "Yıldırım Store", 6, false, 7, 200, catMarketing, new[] { tagKampanya, tagEticaret }
+            ),
+            (
+                "E-Posta Pazarlama ile Tekrar Satın Alma Oranını Artırma",
+                "e-posta-pazarlama-ile-tekrar-satin-alma-oranini-artirma",
+                "Hoş geldin, sepet terk ve yeniden etkileşim akışlarıyla sadakat.",
+                "<h2>Temel otomasyonlar</h2><ul><li>Hoş geldin serisi</li><li>Sepet terk</li><li>Sipariş sonrası çapraz satış</li><li>Yeniden etkileşim</li></ul><p>Her mailde tek bir net CTA kullanın.</p>",
+                Img("photo-1563986768609-322da13575f3"),
+                "Ayşe Demir", 5, false, 8, 175, catMarketing, new[] { tagKampanya, tagRehber }
+            ),
+            (
+                "Stok Yönetimi: Tükenmeden Önce Satış Kaybını Önleyin",
+                "stok-yonetimi-tukenmeden-once-satis-kaybini-onleyin",
+                "Güvenli stok seviyesi, rezervasyon ve düşük stok uyarıları.",
+                "<h2>Görünür stok güveni artırır</h2><p>Müşteri “son 3 ürün” uyarısını gördüğünde karar hızlanır; ama sahte kıtlık güveni bozar.</p><h3>Operasyon</h3><p>Depo ve vitrin stokunu senkron tutun.</p>",
+                Img("photo-1553413077-190dd305871c"),
+                "Mehmet Kaya", 4, false, 9, 160, catOps, new[] { tagLojistik, tagEticaret }
+            ),
+            (
+                "İade ve Değişim Sürecini Müşteri Dostu Hale Getirmek",
+                "iade-ve-degisim-surecini-musteri-dostu-hale-getirmek",
+                "Net politika, kolay form ve hızlı iade onayı ile güven inşa edin.",
+                "<h2>İade korkusu satın almayı engeller</h2><p>Politikanızı ürün sayfasında kısa ve net yazın.</p><h2>İyi deneyim</h2><ol><li>Hesaptan iade talebi</li><li>Durum bildirimleri</li><li>Hızlı iade ödemesi</li></ol>",
+                Img("photo-1556742111-a301076d9d18"),
+                "Elif Yılmaz", 5, false, 10, 150, catOps, new[] { tagRehber, tagEticaret }
+            ),
+            (
+                "Mobil Ödeme Deneyimi: Checkout’u 60 Saniyeye İndirin",
+                "mobil-odeme-deneyimi-checkoutu-60-saniyeye-indirin",
+                "Form alanlarını azaltın, kayıtlı adres ve hızlı ödeme seçenekleri sunun.",
+                "<h2>Mobil gerçeklik</h2><p>Trafiğin büyük kısmı telefonda; checkout da mobil düşünülmeli.</p><ul><li>Otomatik doldurma</li><li>Tek sütun form</li><li>Büyük dokunma alanları</li><li>Özet paneli sabit</li></ul>",
+                Img("photo-1563013544-824ae1b704d3"),
+                "Can Öztürk", 5, false, 11, 210, catUx, new[] { tagDonusum, tagEticaret }
+            ),
+            (
+                "Ürün Fotoğrafçılığı: Dönüşümü Artıran Görsel Standartlar",
+                "urun-fotografciligi-donusumu-artiran-gorsel-standartlar",
+                "Aydınlatma, açılar, lifestyle kareler ve boyut tutarlılığı.",
+                "<h2>Standart galeri</h2><p>Ön, yan, detay ve kullanım karesi minimum settir.</p><h3>Tutarlılık</h3><p>Beyaz fon + aynı oran, katalog bütünlüğü sağlar.</p>",
+                Img("photo-1441986300917-64674bd600d8"),
+                "Ayşe Demir", 4, false, 12, 140, catUx, new[] { tagDonusum, tagRehber }
+            ),
+            (
+                "Sadakat Programı Kurmak: Puan, Kupon ve VIP Katmanlar",
+                "sadakat-programi-kurmak-puan-kupon-ve-vip-katmanlar",
+                "Tekrar satın almayı teşvik eden sadakat mimarisi.",
+                "<h2>Basit başlayın</h2><p>Her alışverişte puan, belirli eşiğe kupon.</p><h3>VIP katman</h3><p>Üst segment müşteriye erken erişim ve ekstra indirim sunun.</p>",
+                Img("photo-1607083206869-4c7672e72a8a"),
+                "Yıldırım Store", 6, false, 13, 185, catGrowth, new[] { tagKampanya, tagEticaret }
+            ),
+            (
+                "Kargo Takibi ve Bildirimler: Müşteri Endişesini Azaltın",
+                "kargo-takibi-ve-bildirimler-musteri-endisesini-azaltin",
+                "Sipariş sonrası iletişim, destek yükünü düşürür.",
+                "<h2>Şeffaflık = daha az ticket</h2><p>Hazırlanıyor, kargoda, teslim edildi adımlarını proaktif bildirin.</p>",
+                Img("photo-1566576912321-d58ddd7a6088"),
+                "Mehmet Kaya", 3, false, 14, 130, catOps, new[] { tagLojistik, tagRehber }
+            ),
+            (
+                "Çapraz Satış ve Upsell: Sepet Ortalamasını Yükseltme",
+                "capraz-satis-ve-upsell-sepet-ortalamasini-yukseltme",
+                "“Birlikte alınanlar” ve paket önerileriyle AOV artışı.",
+                "<h2>Doğru öneri zamanı</h2><p>Ürün sayfası, sepet ve ödeme onayı sonrası üç farklı fırsat penceresi vardır.</p>",
+                Img("photo-1472851294608-062f824d29cc"),
+                "Elif Yılmaz", 5, false, 15, 195, catGrowth, new[] { tagDonusum, tagEticaret }
+            ),
+            (
+                "Güvenli Ödeme Algısı: SSL’den Güven Rozetine",
+                "guvenli-odeme-algisi-sslden-guven-rozetine",
+                "Müşterinin ödeme anındaki güven ihtiyacını karşılayın.",
+                "<h2>Görünür güven</h2><ul><li>HTTPS</li><li>Banka / 3D Secure bilgilendirmesi</li><li>İade politikası özeti</li><li>İletişim bilgisi</li></ul>",
+                Img("photo-1563013544-824ae1b704d3"),
+                "Can Öztürk", 4, false, 16, 120, catUx, new[] { tagRehber, tagEticaret }
+            ),
+            (
+                "Kategori Sayfası Filtreleri: Keşfi Kolaylaştırın",
+                "kategori-sayfasi-filtreleri-kesfi-kolaylastirin",
+                "Fiyat, beden, renk ve marka filtreleriyle dönüşümü destekleyin.",
+                "<h2>Filtre UX</h2><p>Mobilde drawer, masaüstünde sabit sidebar iyi çalışır.</p><h3>SEO notu</h3><p>Filtre URL’lerinde duplicate içerik riskini yönetin.</p>",
+                Img("photo-1483985988355-763728e1935b"),
+                "Ayşe Demir", 5, false, 17, 155, catUx, new[] { tagSeo, tagDonusum }
+            ),
+            (
+                "Canlı Destek ve SSS: Destek Maliyetini Düşürün",
+                "canli-destek-ve-sss-destek-maliyetini-dusurun",
+                "Sık sorular, sipariş takibi ve chatbot senaryoları.",
+                "<h2>Self-servis önce</h2><p>İyi bir SSS, destek ekibinin yükünü ciddi azaltır.</p><p>Canlı destek için yoğun saatleri planlayın.</p>",
+                Img("photo-1553877522-43269d4ea984"),
+                "Yıldırım Store", 4, false, 18, 110, catOps, new[] { tagRehber, tagDuyuru }
+            ),
+            (
+                "Sosyal Medyadan Mağazaya: Trafik Dönüşüm Funnel’i",
+                "sosyal-medyadan-magazaya-trafik-donusum-funneli",
+                "Reels, story ve UGC ile mağaza ziyaretini satışa çevirme.",
+                "<h2>Funnel adımları</h2><ol><li>Dikkat (kısa video)</li><li>İlgi (ürün faydası)</li><li>İstek (sosyal kanıt)</li><li>Aksiyon (landing + kupon)</li></ol>",
+                Img("photo-1611162617474-5b21e879e113"),
+                "Elif Yılmaz", 6, false, 19, 170, catMarketing, new[] { tagKampanya, tagEticaret }
+            ),
+            (
+                "Online Alışverişte Dikkat Edilmesi Gerekenler",
+                "online-alisveriste-dikkat-edilmesi-gerekenler",
+                "Güvenli ve keyifli bir alışveriş deneyimi için pratik öneriler.",
+                "<h2>Alışveriş öncesi</h2><p>Ürün açıklamalarını okuyun, satıcı puanlarını kontrol edin ve iade koşullarını inceleyin.</p><h2>Ödeme anı</h2><p>Güvenli bağlantı (HTTPS) ve güvenilir ödeme yöntemlerini tercih edin.</p><h3>Sonuç</h3><p>Bilinçli alışveriş hem zaman hem bütçe kazandırır.</p>",
+                Img("photo-1556740738-b6a63e27c4df"),
+                "Yıldırım Store", 3, false, 20, 90, catTips, new[] { tagRehber, tagDuyuru }
+            ),
+        };
+
+        // Duplicate cover for one post intentionally varied — fix second mobile payment cover
+        // (index 15 shares cover with 10) — use another image
+        posts[15] = (
+            posts[15].Title, posts[15].Slug, posts[15].Excerpt, posts[15].Content,
+            Img("photo-1556742502-ec7c0e9f34b1"),
+            posts[15].Author, posts[15].Minutes, posts[15].Featured, posts[15].DaysAgo, posts[15].Views,
+            posts[15].Cat, posts[15].Tags
+        );
+
+        foreach (var p in posts)
+        {
+            if (await context.BlogPosts.AnyAsync(x => x.Slug == p.Slug, ct))
+                continue;
+
+            var post = new BlogPost
+            {
+                Title = p.Title,
+                Slug = p.Slug,
+                Excerpt = p.Excerpt,
+                Content = p.Content,
+                CoverImageUrl = p.Cover,
+                AuthorName = p.Author,
+                ReadingTimeMinutes = p.Minutes,
+                IsPublished = true,
+                IsFeatured = p.Featured,
+                PublishedAt = now.AddDays(-p.DaysAgo),
+                MetaTitle = p.Title,
+                MetaDescription = p.Excerpt,
+                BlogCategoryId = p.Cat.Id,
+                ViewCount = p.Views,
+                UpdatedAt = now
+            };
+            context.BlogPosts.Add(post);
+            await context.SaveChangesAsync(ct);
+
+            foreach (var tag in p.Tags.DistinctBy(t => t.Id))
+            {
+                context.BlogPostTags.Add(new BlogPostTag { BlogPostId = post.Id, BlogTagId = tag.Id });
+            }
+
+            await context.SaveChangesAsync(ct);
+            changed = true;
+        }
+
+        return changed;
     }
 }

@@ -1,5 +1,6 @@
 using Catalog.API.Data;
 using Catalog.API.Entities;
+using Catalog.API.Helpers;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -24,7 +25,8 @@ public class AdminCategoriesController : ControllerBase
             .AsNoTracking()
             .Include(c => c.CategoryAttributes)
                 .ThenInclude(ca => ca.ProductAttribute)
-            .OrderBy(c => c.Name)
+            .OrderBy(c => c.SortOrder)
+            .ThenBy(c => c.Name)
             .ToListAsync();
 
         var tree = categories
@@ -35,59 +37,150 @@ public class AdminCategoriesController : ControllerBase
         return Ok(tree);
     }
 
-    /// <summary>Tek kategori detayı (attribute'larıyla)</summary>
+    /// <summary>Tek kategori detayı (attribute'larıyla; üst kategorilerden miras)</summary>
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id)
     {
-        var cat = await _context.Categories
+        var categories = await _context.Categories
             .AsNoTracking()
             .Include(c => c.CategoryAttributes)
                 .ThenInclude(ca => ca.ProductAttribute)
-            .FirstOrDefaultAsync(c => c.Id == id);
+            .ToListAsync();
 
+        var cat = categories.FirstOrDefault(c => c.Id == id);
         if (cat is null) return NotFound();
+
+        // Alt kategoriye özel özellikler + üst zincirden miras (aynı attribute tekrar eklenmez)
+        var attributes = new List<CategoryAttributeDto>();
+        var seen = new HashSet<Guid>();
+        var cursor = cat;
+        var depthOrder = 0;
+        while (cursor is not null)
+        {
+            foreach (var ca in cursor.CategoryAttributes.OrderBy(a => a.SortOrder))
+            {
+                if (!seen.Add(ca.ProductAttributeId)) continue;
+                attributes.Add(new CategoryAttributeDto
+                {
+                    Id = ca.Id,
+                    AttributeId = ca.ProductAttributeId,
+                    AttributeName = ca.ProductAttribute.Name,
+                    AttributeCode = ca.ProductAttribute.Code,
+                    DataType = ca.ProductAttribute.DataType,
+                    Options = ca.ProductAttribute.Options,
+                    IsRequired = ca.ProductAttribute.IsRequired,
+                    IsVariant = ca.ProductAttribute.IsVariant,
+                    IsFilterable = ca.IsFilterable,
+                    SortOrder = depthOrder * 100 + ca.SortOrder
+                });
+            }
+
+            depthOrder++;
+            var parentId = cursor.ParentId;
+            cursor = parentId.HasValue
+                ? categories.FirstOrDefault(c => c.Id == parentId.Value)
+                : null;
+        }
 
         return Ok(new CategoryDetailDto
         {
             Id = cat.Id,
             Name = cat.Name,
             ParentId = cat.ParentId,
-            Attributes = cat.CategoryAttributes.Select(ca => new CategoryAttributeDto
-            {
-                Id = ca.Id,
-                AttributeId = ca.ProductAttributeId,
-                AttributeName = ca.ProductAttribute.Name,
-                AttributeCode = ca.ProductAttribute.Code,
-                DataType = ca.ProductAttribute.DataType,
-                Options = ca.ProductAttribute.Options,
-                IsRequired = ca.ProductAttribute.IsRequired,
-                IsVariant = ca.ProductAttribute.IsVariant,
-                IsFilterable = ca.IsFilterable,
-                SortOrder = ca.SortOrder
-            }).OrderBy(a => a.SortOrder).ToList()
+            Slug = cat.Slug,
+            ImageUrl = cat.ImageUrl,
+            SortOrder = cat.SortOrder,
+            IsFeatured = cat.IsFeatured,
+            ShowInMenu = cat.ShowInMenu,
+            MetaTitle = cat.MetaTitle,
+            MetaDescription = cat.MetaDescription,
+            Attributes = attributes.OrderBy(a => a.SortOrder).ToList()
         });
     }
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreateCategoryRequest req)
+    public async Task<IActionResult> Create([FromBody] SaveCategoryRequest req)
     {
-        var category = new Category { Name = req.Name, ParentId = req.ParentId };
+        var slug = await EnsureUniqueSlugAsync(SlugHelper.Slugify(req.Slug, req.Name));
+
+        var category = new Category
+        {
+            Name = req.Name,
+            ParentId = req.ParentId,
+            Slug = slug,
+            ImageUrl = string.IsNullOrWhiteSpace(req.ImageUrl) ? null : req.ImageUrl.Trim(),
+            SortOrder = req.SortOrder ?? 0,
+            IsFeatured = req.IsFeatured ?? false,
+            ShowInMenu = req.ShowInMenu ?? true,
+            MetaTitle = string.IsNullOrWhiteSpace(req.MetaTitle) ? null : req.MetaTitle.Trim(),
+            MetaDescription = string.IsNullOrWhiteSpace(req.MetaDescription) ? null : req.MetaDescription.Trim()
+        };
+
         _context.Categories.Add(category);
         await _context.SaveChangesAsync();
-        return Ok(new { category.Id, category.Name });
+        return Ok(MapToTree(category, new List<Category> { category }));
     }
 
     [HttpPut("{id:guid}")]
-    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateCategoryRequest req)
+    public async Task<IActionResult> Update(Guid id, [FromBody] SaveCategoryRequest req)
     {
         var cat = await _context.Categories.FindAsync(id);
         if (cat is null) return NotFound();
 
         cat.Name = req.Name;
         cat.ParentId = req.ParentId;
+        cat.Slug = await EnsureUniqueSlugAsync(SlugHelper.Slugify(req.Slug, req.Name), id);
+        if (req.ImageUrl is not null)
+            cat.ImageUrl = string.IsNullOrWhiteSpace(req.ImageUrl) ? null : req.ImageUrl.Trim();
+        if (req.SortOrder.HasValue) cat.SortOrder = req.SortOrder.Value;
+        if (req.IsFeatured.HasValue) cat.IsFeatured = req.IsFeatured.Value;
+        if (req.ShowInMenu.HasValue) cat.ShowInMenu = req.ShowInMenu.Value;
+        if (req.MetaTitle is not null)
+            cat.MetaTitle = string.IsNullOrWhiteSpace(req.MetaTitle) ? null : req.MetaTitle.Trim();
+        if (req.MetaDescription is not null)
+            cat.MetaDescription = string.IsNullOrWhiteSpace(req.MetaDescription) ? null : req.MetaDescription.Trim();
         cat.UpdatedAt = DateTime.UtcNow;
+
         await _context.SaveChangesAsync();
-        return Ok(new { cat.Id, cat.Name });
+        return Ok(new
+        {
+            cat.Id,
+            cat.Name,
+            cat.ParentId,
+            cat.Slug,
+            cat.ImageUrl,
+            cat.SortOrder,
+            cat.IsFeatured,
+            cat.ShowInMenu,
+            cat.MetaTitle,
+            cat.MetaDescription
+        });
+    }
+
+    /// <summary>Kardeş kategorilerin sıralamasını günceller (DnD).</summary>
+    [HttpPost("reorder")]
+    public async Task<IActionResult> Reorder([FromBody] ReorderCategoriesRequest req)
+    {
+        if (req.Items is null || req.Items.Count == 0)
+            return BadRequest("Sıralama listesi boş.");
+
+        var ids = req.Items.Select(i => i.Id).ToList();
+        var categories = await _context.Categories
+            .Where(c => ids.Contains(c.Id))
+            .ToListAsync();
+
+        foreach (var item in req.Items)
+        {
+            var cat = categories.FirstOrDefault(c => c.Id == item.Id);
+            if (cat is null) continue;
+            cat.SortOrder = item.SortOrder;
+            if (item.ParentId.HasValue || item.ClearParent)
+                cat.ParentId = item.ClearParent ? null : item.ParentId;
+            cat.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await _context.SaveChangesAsync();
+        return Ok(new { updated = categories.Count });
     }
 
     [HttpDelete("{id:guid}")]
@@ -142,6 +235,21 @@ public class AdminCategoriesController : ControllerBase
         return NoContent();
     }
 
+    private async Task<string> EnsureUniqueSlugAsync(string slug, Guid? excludeId = null)
+    {
+        if (string.IsNullOrWhiteSpace(slug)) slug = "kategori";
+
+        var candidate = slug;
+        var i = 2;
+        while (await _context.Categories.AnyAsync(c =>
+                   c.Slug == candidate && (!excludeId.HasValue || c.Id != excludeId.Value)))
+        {
+            candidate = $"{slug}-{i++}";
+        }
+
+        return candidate;
+    }
+
     private static CategoryTreeDto MapToTree(Category c, List<Category> all)
     {
         return new CategoryTreeDto
@@ -149,7 +257,14 @@ public class AdminCategoriesController : ControllerBase
             Id = c.Id,
             Name = c.Name,
             ParentId = c.ParentId,
-            AttributeCount = c.CategoryAttributes.Count,
+            Slug = c.Slug,
+            ImageUrl = c.ImageUrl,
+            SortOrder = c.SortOrder,
+            IsFeatured = c.IsFeatured,
+            ShowInMenu = c.ShowInMenu,
+            MetaTitle = c.MetaTitle,
+            MetaDescription = c.MetaDescription,
+            AttributeCount = c.CategoryAttributes?.Count ?? 0,
             Children = all
                 .Where(x => x.ParentId == c.Id)
                 .Select(x => MapToTree(x, all))
@@ -158,9 +273,28 @@ public class AdminCategoriesController : ControllerBase
     }
 }
 
-// DTOs
-public record CreateCategoryRequest(string Name, Guid? ParentId);
-public record UpdateCategoryRequest(string Name, Guid? ParentId);
+/// <summary>
+/// Yeni alanlar opsiyoneldir — eski admin istemcileri sadece Name/ParentId gönderse de çalışır.
+/// </summary>
+public record SaveCategoryRequest(
+    string Name,
+    Guid? ParentId,
+    string? Slug = null,
+    string? ImageUrl = null,
+    int? SortOrder = null,
+    bool? IsFeatured = null,
+    bool? ShowInMenu = null,
+    string? MetaTitle = null,
+    string? MetaDescription = null);
+
+public record ReorderCategoriesRequest(List<ReorderCategoryItem> Items);
+
+public record ReorderCategoryItem(
+    Guid Id,
+    int SortOrder,
+    Guid? ParentId = null,
+    bool ClearParent = false);
+
 public record AssignAttributeRequest(Guid AttributeId, int SortOrder = 0, bool IsFilterable = true);
 
 public class CategoryTreeDto
@@ -168,6 +302,13 @@ public class CategoryTreeDto
     public Guid Id { get; set; }
     public string Name { get; set; } = default!;
     public Guid? ParentId { get; set; }
+    public string? Slug { get; set; }
+    public string? ImageUrl { get; set; }
+    public int SortOrder { get; set; }
+    public bool IsFeatured { get; set; }
+    public bool ShowInMenu { get; set; } = true;
+    public string? MetaTitle { get; set; }
+    public string? MetaDescription { get; set; }
     public int AttributeCount { get; set; }
     public List<CategoryTreeDto> Children { get; set; } = new();
 }
@@ -177,6 +318,13 @@ public class CategoryDetailDto
     public Guid Id { get; set; }
     public string Name { get; set; } = default!;
     public Guid? ParentId { get; set; }
+    public string? Slug { get; set; }
+    public string? ImageUrl { get; set; }
+    public int SortOrder { get; set; }
+    public bool IsFeatured { get; set; }
+    public bool ShowInMenu { get; set; } = true;
+    public string? MetaTitle { get; set; }
+    public string? MetaDescription { get; set; }
     public List<CategoryAttributeDto> Attributes { get; set; } = new();
 }
 

@@ -67,9 +67,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization(options =>
 {
+    // Panel personeli: Admin + Editor + Support + Warehouse
     options.AddPolicy("AdminOnly", policy => policy
         .RequireAuthenticatedUser()
-        .RequireRole("Admin"));
+        .RequireRole("Admin", "Editor", "Support", "Warehouse"));
 });
 
 builder.Services.AddRateLimiter(options =>

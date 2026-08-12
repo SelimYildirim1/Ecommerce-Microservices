@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import AddToCartButton from "./AddToCartButton";
 import FavoriteButton from "./FavoriteButton";
+import SizeChartModal, { hasSizeLikeAttributes } from "./SizeChartModal";
+import StockAlertForm from "./StockAlertForm";
 import {
   attributeLabel,
   describeVariant,
@@ -45,6 +47,7 @@ export default function ProductPurchasePanel({ product }: { product: Product }) 
 
   const outOfStock = stock <= 0;
   const unavailable = optionKeys.length > 0 && !selectedVariant;
+  const showSizeChart = hasSizeLikeAttributes(activeVariants);
 
   /** Secilen kombinasyonun stokta olup olmadigini butonlarda gostermek icin. */
   const isCombinationAvailable = (key: string, value: string) => {
@@ -65,6 +68,12 @@ export default function ProductPurchasePanel({ product }: { product: Product }) 
           </p>
         )}
       </div>
+
+      {showSizeChart && (
+        <div className="mt-5">
+          <SizeChartModal />
+        </div>
+      )}
 
       {optionKeys.length > 0 && (
         <div className="mt-6 space-y-5">
@@ -152,6 +161,7 @@ export default function ProductPurchasePanel({ product }: { product: Product }) 
               price,
               color: describeVariant(selectedVariant),
               pictureUrl: product.primaryImageUrl,
+              variantId: selectedVariant?.id ?? null,
             }}
             quantity={quantity}
             disabled={outOfStock || unavailable}
@@ -160,6 +170,40 @@ export default function ProductPurchasePanel({ product }: { product: Product }) 
         </div>
         <FavoriteButton productId={product.id} variant="inline" />
       </div>
+
+      {/* Mobil sticky sepete ekle */}
+      <div
+        className="fixed inset-x-0 bottom-14 z-30 border-t border-border bg-white/95 px-4 py-3 backdrop-blur md:hidden"
+        style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+      >
+        <div className="mx-auto flex max-w-lg items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold">{formatPrice(price)}</p>
+            <p className="truncate text-xs text-muted-foreground">{product.name}</p>
+          </div>
+          <div className="shrink-0 w-40">
+            <AddToCartButton
+              product={{
+                id: product.id,
+                name: product.name,
+                price,
+                color: describeVariant(selectedVariant),
+                pictureUrl: product.primaryImageUrl,
+                variantId: selectedVariant?.id ?? null,
+              }}
+              quantity={quantity}
+              disabled={outOfStock || unavailable}
+              label={outOfStock ? "Stokta yok" : "Sepete Ekle"}
+            />
+          </div>
+        </div>
+      </div>
+
+      {outOfStock && !unavailable && (
+        <div className="max-w-md">
+          <StockAlertForm productId={product.id} />
+        </div>
+      )}
     </div>
   );
 }

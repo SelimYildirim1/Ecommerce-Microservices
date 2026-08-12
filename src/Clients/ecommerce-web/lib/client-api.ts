@@ -17,6 +17,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = Cookies.get("token");
 
   const res = await fetch(`${API_URL}${path}`, {
+    cache: "no-store",
     ...init,
     headers: {
       "Content-Type": "application/json",
@@ -37,6 +38,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 // --- Katalog ---
+
+export type StoreCurrency = {
+  id: string;
+  code: string;
+  symbol: string;
+  name: string;
+  rateToBase: number;
+  isDefault: boolean;
+  isActive: boolean;
+};
+
+export function getCurrencies() {
+  return request<StoreCurrency[]>("/catalog/currencies");
+}
 
 export function searchProducts(params: URLSearchParams) {
   return request<PagedResult<Product>>(`/catalog/products/search?${params}`);
@@ -71,8 +86,17 @@ export function removeFavorite(userId: string, productId: string) {
 
 // --- Yorumlar ---
 
-export function getReviews(productId: string) {
-  return request<Review[]>(`/catalog/products/${productId}/reviews`);
+export function getReviews(
+  productId: string,
+  opts?: { sort?: string; rating?: number },
+) {
+  const params = new URLSearchParams();
+  if (opts?.sort) params.set("sort", opts.sort);
+  if (opts?.rating) params.set("rating", String(opts.rating));
+  const qs = params.toString();
+  return request<Review[]>(
+    `/catalog/products/${productId}/reviews${qs ? `?${qs}` : ""}`,
+  );
 }
 
 export function getReviewSummary(productId: string) {
@@ -87,12 +111,57 @@ export function createReview(
     comment?: string;
     userId: string;
     userName: string;
+    imageUrls?: string[];
   },
 ) {
   return request<Review>(`/catalog/products/${productId}/reviews`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export function voteReview(productId: string, reviewId: string, isHelpful: boolean) {
+  return request<Review>(`/catalog/products/${productId}/reviews/${reviewId}/vote`, {
+    method: "POST",
+    body: JSON.stringify({ isHelpful }),
+  });
+}
+
+export function getProductQuestions(productId: string) {
+  return request<import("./catalog").ProductQuestion[]>(
+    `/catalog/products/${productId}/questions`,
+  );
+}
+
+export function createProductQuestion(
+  productId: string,
+  payload: { question: string; userName?: string; email?: string },
+) {
+  return request<import("./catalog").ProductQuestion>(
+    `/catalog/products/${productId}/questions`,
+    { method: "POST", body: JSON.stringify(payload) },
+  );
+}
+
+export async function uploadMedia(file: File): Promise<string> {
+  const token = Cookies.get("token");
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch(`${API_URL}/catalog/media/upload`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(parseApiError(text, "Görsel yüklenemedi."));
+  }
+
+  const data = (await res.json()) as { url?: string };
+  if (!data.url) throw new Error("Görsel URL alınamadı.");
+  return data.url;
 }
 
 // --- Profil ---
@@ -133,7 +202,7 @@ export function changePassword(payload: {
   });
 }
 
-// --- Adres defteri ---
+// --- Adreslerim ---
 
 export interface Address {
   id: number;
@@ -174,4 +243,75 @@ export function deleteAddress(id: number) {
 
 export function setDefaultAddress(id: number) {
   return request<Address>(`/auth/addresses/${id}/default`, { method: "PUT" });
+}
+
+// --- Bildirim Tercihleri ---
+
+export interface NotificationPreferences {
+  orderUpdates: boolean;
+  campaigns: boolean;
+  newsletter: boolean;
+  sms: boolean;
+  stockAlerts: boolean;
+  priceDrops: boolean;
+}
+
+export function getNotificationPreferences() {
+  return request<NotificationPreferences>("/auth/notification-preferences");
+}
+
+export function updateNotificationPreferences(payload: NotificationPreferences) {
+  return request<NotificationPreferences>("/auth/notification-preferences", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+// --- Veri Dışa Aktarma & Hesap Silme ---
+
+export function exportUserData() {
+  return request<unknown>("/auth/export-data");
+}
+
+export function deleteAccount() {
+  return request<{ message: string }>("/auth/account", { method: "DELETE" });
+}
+
+// --- Sadakat Programı ---
+
+export interface LoyaltyAccount {
+  userId: string;
+  points: number;
+  lastEarnedAt: string | null;
+  transactions: LoyaltyTransaction[];
+}
+
+export interface LoyaltyTransaction {
+  id: string;
+  type: string;
+  points: number;
+  description: string | null;
+  orderId: string | null;
+  createdAt: string;
+}
+
+export function getLoyaltyAccount(userId: string) {
+  return request<LoyaltyAccount>(`/loyalty/${userId}`);
+}
+
+// --- Kullanıcı Kuponları ---
+
+export interface UserCoupon {
+  id: string;
+  code: string;
+  description: string | null;
+  discountType: string;
+  value: number;
+  minBasketAmount: number;
+  validTo: string;
+  used: boolean;
+}
+
+export function getUserCoupons(userId: string) {
+  return request<UserCoupon[]>(`/coupons/user/${userId}`);
 }

@@ -26,11 +26,23 @@ public class AdminSettingsController : ControllerBase
         new("site.phone", "0850 000 00 00", "general", "İletişim telefonu"),
         new("site.address", "", "general", "Şirket adresi"),
 
+        new("seo.defaultTitle", "Yıldırım Store", "seo", "Varsayılan sayfa başlığı"),
+        new("seo.defaultDescription", "En yeni ürünler, en uygun fiyatlarla.", "seo", "Varsayılan meta açıklama"),
+        new("seo.titleSuffix", " | Yıldırım Store", "seo", "Başlık soneki"),
+        new("seo.ogImage", "", "seo", "Varsayılan Open Graph görseli"),
+        new("seo.robots", "index,follow", "seo", "Robots meta"),
+        new("seo.googleAnalyticsId", "", "seo", "Google Analytics ID"),
+        new("seo.googleSiteVerification", "", "seo", "Google site doğrulama"),
+
         new("commerce.currency", "TRY", "commerce", "Para birimi"),
         new("commerce.currencySymbol", "₺", "commerce", "Para birimi sembolü"),
-        new("commerce.vatRate", "20", "commerce", "KDV oranı (%)"),
-        new("commerce.pricesIncludeVat", "true", "commerce", "Fiyatlara KDV dahil mi?"),
+        new("commerce.vatRate", "20", "tax", "KDV oranı (%)"),
+        new("commerce.pricesIncludeVat", "true", "tax", "Fiyatlara KDV dahil mi?"),
         new("commerce.lowStockThreshold", "10", "commerce", "Kritik stok eşiği"),
+        new("commerce.installmentRates", "{\"3\":0,\"6\":0.02,\"9\":0.04,\"12\":0.06}", "payment", "Taksit faiz oranları (JSON)"),
+        new("commerce.transferAccounts", "[]", "payment", "Havale/EFT hesapları (JSON)"),
+        new("commerce.codFee", "0", "payment", "Kapıda ödeme ücreti"),
+        new("commerce.codEnabled", "true", "payment", "Kapıda ödeme aktif mi?"),
 
         new("shipping.freeThreshold", "500", "shipping", "Ücretsiz kargo alt limiti"),
         new("shipping.defaultCost", "49.90", "shipping", "Varsayılan kargo ücreti"),
@@ -122,7 +134,7 @@ public class AdminSettingsController : ControllerBase
 public class PublicSettingsController : ControllerBase
 {
     /// <summary>Gizli kalmasi gereken gruplar vitrine acilmaz.</summary>
-    private static readonly string[] PublicGroups = { "general", "commerce", "shipping", "social" };
+    private static readonly string[] PublicGroups = { "general", "commerce", "shipping", "social", "seo", "payment", "tax" };
 
     private readonly CatalogDbContext _context;
 

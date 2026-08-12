@@ -35,6 +35,7 @@ public class StockReservedConsumer : IConsumer<StockReservedEvent>
             await _publishEndpoint.Publish(new PaymentSucceededEvent
             {
                 OrderId = message.OrderId,
+                OrderNumber = message.OrderNumber,
                 Email = message.Email
             });
             _logger.LogInformation("PaymentSucceededEvent yayımlandı. OrderId={OrderId}", message.OrderId);
@@ -48,6 +49,7 @@ public class StockReservedConsumer : IConsumer<StockReservedEvent>
             await _publishEndpoint.Publish(new PaymentFailedEvent
             {
                 OrderId = message.OrderId,
+                OrderNumber = message.OrderNumber,
                 Email = message.Email,
                 Reason = "Yetersiz bakiye veya kart limiti",
                 OrderItems = message.OrderItems

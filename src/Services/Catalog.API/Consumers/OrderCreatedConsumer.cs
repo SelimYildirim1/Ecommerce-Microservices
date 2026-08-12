@@ -121,6 +121,7 @@ public class OrderCreatedConsumer : IConsumer<OrderCreatedEvent>
         var reservedEvent = new StockReservedEvent
         {
             OrderId = msg.OrderId,
+            OrderNumber = msg.OrderNumber,
             BuyerId = msg.BuyerId,
             Email = msg.Email,
             TotalPrice = msg.TotalPrice,

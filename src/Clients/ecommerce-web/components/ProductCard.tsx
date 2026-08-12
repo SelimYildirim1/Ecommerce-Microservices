@@ -1,12 +1,20 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ImageOff } from "lucide-react";
 import AddToCartButton from "./AddToCartButton";
+import CompareButton from "./CompareButton";
 import FavoriteButton from "./FavoriteButton";
 import StarRating from "./StarRating";
 import { formatPrice, getImageUrl, getPrice, type Product } from "@/lib/catalog";
 
 /** Anasayfa, liste ve favori sayfalarinin paylastigi urun karti. */
-export default function ProductCard({ product }: { product: Product }) {
+export default function ProductCard({
+  product,
+  priority = false,
+}: {
+  product: Product;
+  priority?: boolean;
+}) {
   const price = getPrice(product);
   const imageUrl = getImageUrl(product);
   const rating = product.averageRating ?? 0;
@@ -17,10 +25,13 @@ export default function ProductCard({ product }: { product: Product }) {
       <Link href={`/products/${product.id}`} className="relative block">
         <div className="relative aspect-[4/3] overflow-hidden bg-gray-50">
           {imageUrl ? (
-            <img
+            <Image
               src={imageUrl}
               alt={product.name}
-              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+              fill
+              priority={priority}
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+              className="object-cover transition-transform duration-500 group-hover:scale-105"
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center">
@@ -30,6 +41,19 @@ export default function ProductCard({ product }: { product: Product }) {
         </div>
 
         <FavoriteButton productId={product.id} />
+        <CompareButton
+          product={{
+            id: product.id,
+            name: product.name,
+            image: product.primaryImageUrl,
+            price,
+            brandName: product.brandName,
+            categoryName: product.categoryName,
+            description: product.description,
+            stock: product.stock,
+            averageRating: product.averageRating,
+          }}
+        />
       </Link>
 
       <div className="flex flex-1 flex-col p-5">

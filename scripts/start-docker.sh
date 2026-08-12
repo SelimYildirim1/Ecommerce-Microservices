@@ -51,9 +51,12 @@ else
   echo "============================================="
   echo ""
   echo "  Frontend:     http://localhost:3000"
+  echo "  Admin Panel:  http://localhost:3002"
   echo "  API Gateway:  http://localhost:8001"
   echo "  RabbitMQ:     http://localhost:15672 (guest/guest)"
   echo "  MailHog:      http://localhost:8025 (giden e-postalar)"
+  echo ""
+  echo "  Hot-reload (dev): docker compose -f docker-compose.yml -f docker-compose.dev.yml up ecommerce.web"
   if [[ "$MODE" == "full" ]]; then
     echo "  Seq:          http://localhost:5340"
     echo "  Jaeger:       http://localhost:16686"
@@ -66,5 +69,7 @@ else
   fi
   echo ""
   echo "  Durdurmak icin: ./scripts/stop-docker.sh"
+  echo "  Saglik kontrol: ./scripts/smoke-health.sh"
+  echo "  Self-heal cron: ./scripts/install-watchdog.sh  (VPS)"
   echo ""
 fi

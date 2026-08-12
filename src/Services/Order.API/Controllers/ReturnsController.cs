@@ -127,6 +127,7 @@ public class ReturnsController : ControllerBase
             OrderId = orderId,
             BuyerId = order.BuyerId,
             RequestNumber = GenerateRequestNumber(),
+            RequestType = request.RequestType,
             Reason = request.Reason,
             ReasonDetail = request.ReasonDetail?.Trim(),
             Status = ReturnStatus.Pending
@@ -142,17 +143,30 @@ public class ReturnsController : ControllerBase
                 return BadRequest(
                     $"'{orderItem.ProductName}' için adet 1 ile {orderItem.Units} arasında olmalı.");
 
+            if (request.RequestType == ReturnRequestType.Exchange &&
+                !selection.ExchangeProductId.HasValue &&
+                string.IsNullOrWhiteSpace(selection.ExchangeProductName))
+            {
+                return BadRequest("Değişim talebinde hedef ürün bilgisi zorunludur.");
+            }
+
             returnRequest.Items.Add(new ReturnRequestItem
             {
                 OrderItemId = orderItem.Id,
                 ProductId = orderItem.ProductId,
                 ProductName = orderItem.ProductName,
                 UnitPrice = orderItem.UnitPrice,
-                Units = selection.Units
+                Units = selection.Units,
+                ExchangeProductId = selection.ExchangeProductId,
+                ExchangeProductName = selection.ExchangeProductName?.Trim(),
+                ExchangeSelectedAttributes = selection.ExchangeSelectedAttributes?.Trim()
             });
         }
 
-        returnRequest.RefundAmount = returnRequest.Items.Sum(i => i.UnitPrice * i.Units);
+        // Degisimde iade tutari 0; iadede kalem tutari
+        returnRequest.RefundAmount = request.RequestType == ReturnRequestType.Exchange
+            ? 0
+            : returnRequest.Items.Sum(i => i.UnitPrice * i.Units);
 
         _context.ReturnRequests.Add(returnRequest);
         await _context.SaveChangesAsync();
