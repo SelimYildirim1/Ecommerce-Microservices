@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { ImageOff, Play, X, ZoomIn } from "lucide-react";
 import { resolveMediaUrl, type ProductImage } from "@/lib/catalog";
+import ShimmerImage from "./ShimmerImage";
 
 interface Props {
   images: ProductImage[];
@@ -90,12 +91,11 @@ export default function ProductGallery({ images, fallbackUrl, alt }: Props) {
               poster={items.find((i) => i.mediaType === "image")?.url}
             />
           ) : (
-            <Image
+            <ShimmerImage
               src={current.url}
               alt={alt}
-              fill
               sizes="(max-width: 1024px) 100vw, 50vw"
-              className="object-cover transition-transform duration-200"
+              className="object-cover"
               style={zoomStyle}
               priority
             />

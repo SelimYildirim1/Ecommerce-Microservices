@@ -143,7 +143,7 @@ export default async function ProductsPage({
         <div className="flex flex-col gap-8 lg:flex-row">
           <div className="hidden lg:block">
             <Suspense
-              fallback={<div className="h-96 w-64 animate-pulse rounded-2xl bg-gray-50" />}
+              fallback={<div className="shimmer h-96 w-64 rounded-2xl" />}
             >
               <ProductFilters facets={facets} />
             </Suspense>
@@ -161,10 +161,10 @@ export default async function ProductsPage({
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Suspense fallback={<div className="h-9 w-32 rounded-lg bg-gray-50" />}>
+                <Suspense fallback={<div className="shimmer h-9 w-32 rounded-lg" />}>
                   <ProductViewControls />
                 </Suspense>
-                <Suspense fallback={<div className="h-9 w-48 rounded-lg bg-gray-50" />}>
+                <Suspense fallback={<div className="shimmer h-9 w-48 rounded-lg" />}>
                   <SortSelect />
                 </Suspense>
               </div>

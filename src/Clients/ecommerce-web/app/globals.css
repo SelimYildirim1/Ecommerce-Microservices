@@ -162,3 +162,86 @@ body {
   color: hsl(var(--foreground));
   font-weight: 600;
 }
+
+/* Üst slogan şeridi — sağdan sola kayma */
+.announcement-bar {
+  z-index: 60;
+}
+.announcement-viewport {
+  height: 2.25rem;
+  display: flex;
+  align-items: center;
+}
+.announcement-track {
+  display: flex;
+  width: max-content;
+  animation: announcement-marquee 40s linear infinite;
+}
+.announcement-text {
+  flex-shrink: 0;
+  padding-inline: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  white-space: nowrap;
+  line-height: 1;
+}
+@keyframes announcement-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .announcement-track {
+    animation: none;
+    transform: none;
+    justify-content: center;
+    width: 100%;
+  }
+  .announcement-text:last-child {
+    display: none;
+  }
+  .announcement-text:first-child {
+    white-space: normal;
+    text-align: center;
+    padding-inline: 1rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* Ürün kartı / görsel yükleme iskeleti */
+.shimmer {
+  position: relative;
+  overflow: hidden;
+  background-color: hsl(0 0% 93%);
+}
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    hsl(0 0% 100% / 0.72) 50%,
+    transparent 100%
+  );
+  animation: shimmer-slide 1.35s ease-in-out infinite;
+}
+@keyframes shimmer-slide {
+  100% {
+    transform: translateX(100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shimmer::after {
+    animation: none;
+    display: none;
+  }
+}
+

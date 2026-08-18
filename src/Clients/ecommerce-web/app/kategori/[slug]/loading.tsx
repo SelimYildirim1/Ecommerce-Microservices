@@ -1,21 +1,21 @@
+import Header from "@/components/Header";
+import { ProductCardSkeletonGrid, ShimmerBar } from "@/components/ProductCardSkeleton";
+
 /** Kategori sayfası yüklenirken iskelet. */
 export default function CategoryLoading() {
   return (
-    <div className="mx-auto max-w-[1600px] animate-pulse px-6 py-10 md:px-12">
-      <div className="mb-2 h-4 w-40 rounded bg-muted" />
-      <div className="mb-8 h-9 w-56 rounded-lg bg-muted" />
-      <div className="mb-8 h-40 w-full rounded-2xl bg-muted" />
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="overflow-hidden rounded-2xl border border-gray-100">
-            <div className="aspect-[4/3] bg-muted" />
-            <div className="space-y-3 p-5">
-              <div className="h-4 w-3/4 rounded bg-muted" />
-              <div className="h-3 w-full rounded bg-muted" />
-              <div className="h-5 w-20 rounded bg-muted" />
-            </div>
-          </div>
-        ))}
+    <div className="bg-white text-foreground">
+      <Header />
+      <div className="mx-auto max-w-[1600px] px-6 py-8 md:px-12">
+        <ShimmerBar className="mb-6 h-4 w-48 rounded" />
+        <ShimmerBar className="mb-2 h-10 w-56 rounded-lg" />
+        <ShimmerBar className="mb-8 h-4 w-24 rounded" />
+        <div className="mb-10 flex flex-wrap gap-2">
+          {[1, 2, 3, 4].map((i) => (
+            <ShimmerBar key={i} className="h-8 w-24 rounded-full" />
+          ))}
+        </div>
+        <ProductCardSkeletonGrid count={8} />
       </div>
     </div>
   );

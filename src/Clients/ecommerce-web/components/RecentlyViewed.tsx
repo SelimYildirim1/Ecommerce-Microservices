@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { ImageOff } from "lucide-react";
 import SectionHeader from "./SectionHeader";
+import ShimmerImage from "./ShimmerImage";
 import {
   getRecentlyViewed,
   type RecentlyViewedItem,
@@ -43,12 +43,11 @@ export default function RecentlyViewed({ excludeId }: Props) {
             >
               <div className="relative mb-3 aspect-[4/3] overflow-hidden rounded-xl bg-gray-50">
                 {image ? (
-                  <Image
+                  <ShimmerImage
                     src={image}
                     alt={item.name}
-                    fill
                     sizes="176px"
-                    className="object-cover transition-transform duration-300 group-hover:scale-105"
+                    className="object-cover group-hover:scale-105"
                   />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center">

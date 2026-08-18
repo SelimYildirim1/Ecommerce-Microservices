@@ -1,9 +1,9 @@
 import Link from "next/link";
-import Image from "next/image";
 import { ImageOff } from "lucide-react";
 import AddToCartButton from "./AddToCartButton";
 import CompareButton from "./CompareButton";
 import FavoriteButton from "./FavoriteButton";
+import ShimmerImage from "./ShimmerImage";
 import StarRating from "./StarRating";
 import { formatPrice, getImageUrl, getPrice, type Product } from "@/lib/catalog";
 
@@ -25,13 +25,12 @@ export default function ProductCard({
       <Link href={`/products/${product.id}`} className="relative block">
         <div className="relative aspect-[4/3] overflow-hidden bg-gray-50">
           {imageUrl ? (
-            <Image
+            <ShimmerImage
               src={imageUrl}
               alt={product.name}
-              fill
               priority={priority}
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-              className="object-cover transition-transform duration-500 group-hover:scale-105"
+              className="object-cover group-hover:scale-105"
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center">

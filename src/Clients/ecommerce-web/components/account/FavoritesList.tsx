@@ -11,6 +11,8 @@ import {
 } from "@/context/FavoritesContext";
 import * as api from "@/lib/client-api";
 import { formatPrice, resolveMediaUrl, type Favorite } from "@/lib/catalog";
+import { ProductCardSkeletonGrid } from "@/components/ProductCardSkeleton";
+import ShimmerImage from "@/components/ShimmerImage";
 
 export default function FavoritesList({ limit }: { limit?: number }) {
   const { user, isLoading: authLoading } = useAuth();
@@ -81,11 +83,10 @@ export default function FavoritesList({ limit }: { limit?: number }) {
 
   if (loading && items.length === 0) {
     return (
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="aspect-[4/3] animate-pulse rounded-2xl bg-gray-50" />
-        ))}
-      </div>
+      <ProductCardSkeletonGrid
+        count={6}
+        className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3"
+      />
     );
   }
 
@@ -116,13 +117,14 @@ export default function FavoritesList({ limit }: { limit?: number }) {
           key={item.id}
           className="group flex h-full flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
         >
-          <Link href={`/products/${item.productId}`}>
-            <div className="aspect-[4/3] overflow-hidden bg-gray-50">
+          <Link href={`/products/${item.productId}`} className="relative block">
+            <div className="relative aspect-[4/3] overflow-hidden bg-gray-50">
               {item.primaryImageUrl ? (
-                <img
+                <ShimmerImage
                   src={resolveMediaUrl(item.primaryImageUrl)}
                   alt={item.productName}
-                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                  className="object-cover group-hover:scale-105"
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center">

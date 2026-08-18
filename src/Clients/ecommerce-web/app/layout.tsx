@@ -11,6 +11,7 @@ import CookieBanner from "@/components/CookieBanner";
 import AppToaster from "@/components/AppToaster";
 import MobileBottomNav from "@/components/MobileBottomNav";
 import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
+import AnnouncementBar from "@/components/AnnouncementBar";
 import { AuthProvider } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
 import { CartDrawerProvider } from "@/context/CartDrawerContext";
@@ -147,6 +148,9 @@ export default async function RootLayout({
                     >
                       {t("skipToContent")}
                     </a>
+                    <Suspense fallback={null}>
+                      <AnnouncementBar />
+                    </Suspense>
                     <div id="main-content" className="flex-1" tabIndex={-1}>
                       {children}
                     </div>
