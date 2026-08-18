@@ -13,7 +13,7 @@ export interface HeroSlide {
   linkUrl?: string | null;
 }
 
-const AUTOPLAY_MS = 6000;
+const AUTOPLAY_MS = 5000;
 
 /**
  * Ana sayfa hero alani. Panelden gelen bannerlari sirayla gosterir;
@@ -106,34 +106,42 @@ export default function HeroSlider({ slides }: { slides: HeroSlide[] }) {
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
           </Link>
         </div>
-
-        {total > 1 && (
-          <div
-            className="mt-12 flex items-center gap-2"
-            role="tablist"
-            aria-label="Banner slaytları"
-          >
-            {slides.map((slide, i) => {
-              const isActive = i === index;
-              return (
-                <button
-                  key={slide.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={isActive}
-                  aria-label={`${i + 1}. slayt`}
-                  onClick={() => setIndex(i)}
-                  className={`h-2.5 rounded-full transition-all duration-300 ${
-                    isActive
-                      ? "w-8 bg-foreground"
-                      : "w-2.5 bg-gray-300 hover:bg-gray-400"
-                  }`}
-                />
-              );
-            })}
-          </div>
-        )}
       </div>
+
+      {total > 1 && (
+        <div
+          className="absolute bottom-6 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 md:bottom-8"
+          role="tablist"
+          aria-label="Banner slaytları"
+        >
+          {slides.map((slide, i) => {
+            const isActive = i === index;
+            return (
+              <button
+                key={slide.id}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                aria-label={`${i + 1}. slayt`}
+                onClick={() => setIndex(i)}
+                className={`relative h-2.5 overflow-hidden rounded-full transition-all duration-300 ${
+                  isActive
+                    ? "w-8 bg-gray-300"
+                    : "w-2.5 bg-gray-300 hover:bg-gray-400"
+                }`}
+              >
+                {isActive && (
+                  <span
+                    key={index}
+                    className="hero-progress absolute inset-0 origin-left rounded-full bg-foreground"
+                    style={{ animationDuration: `${AUTOPLAY_MS}ms` }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }
