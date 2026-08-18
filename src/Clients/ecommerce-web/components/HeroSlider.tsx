@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState } from "react";
-import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 export interface HeroSlide {
   id: string;
@@ -30,7 +30,7 @@ export default function HeroSlider({ slides }: { slides: HeroSlide[] }) {
 
     const timer = setInterval(() => setIndex((i) => (i + 1) % total), AUTOPLAY_MS);
     return () => clearInterval(timer);
-  }, [total]);
+  }, [total, index]);
 
   useEffect(() => {
     if (total === 0) return;
@@ -55,7 +55,6 @@ export default function HeroSlider({ slides }: { slides: HeroSlide[] }) {
   if (total === 0) return null;
 
   const active = slides[Math.min(index, total - 1)];
-  const go = (step: number) => setIndex((i) => (i + step + total) % total);
 
   return (
     <section className="relative flex h-[62vh] min-h-[460px] w-full items-center overflow-hidden bg-cream">
@@ -109,27 +108,29 @@ export default function HeroSlider({ slides }: { slides: HeroSlide[] }) {
         </div>
 
         {total > 1 && (
-          <div className="mt-12 flex items-center gap-4">
-            <button
-              onClick={() => go(-1)}
-              aria-label="Önceki görsel"
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white/60 backdrop-blur-sm transition-colors hover:bg-white"
-            >
-              <ChevronLeft className="h-4 w-4 text-gray-600" />
-            </button>
-
-            <span className="text-sm font-medium text-gray-900">
-              {String(index + 1).padStart(2, "0")}
-              <span className="text-gray-400"> / {String(total).padStart(2, "0")}</span>
-            </span>
-
-            <button
-              onClick={() => go(1)}
-              aria-label="Sonraki görsel"
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white/60 backdrop-blur-sm transition-colors hover:bg-white"
-            >
-              <ChevronRight className="h-4 w-4 text-gray-600" />
-            </button>
+          <div
+            className="mt-12 flex items-center gap-2"
+            role="tablist"
+            aria-label="Banner slaytları"
+          >
+            {slides.map((slide, i) => {
+              const isActive = i === index;
+              return (
+                <button
+                  key={slide.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-label={`${i + 1}. slayt`}
+                  onClick={() => setIndex(i)}
+                  className={`h-2.5 rounded-full transition-all duration-300 ${
+                    isActive
+                      ? "w-8 bg-foreground"
+                      : "w-2.5 bg-gray-300 hover:bg-gray-400"
+                  }`}
+                />
+              );
+            })}
           </div>
         )}
       </div>
