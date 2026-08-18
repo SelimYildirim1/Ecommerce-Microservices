@@ -12,7 +12,7 @@ export default function ProductsLoading() {
 
         <div className="flex flex-col gap-8 lg:flex-row">
           <div className="hidden lg:block">
-            <div className="shimmer h-96 w-64 rounded-2xl" />
+            <ShimmerBar className="h-96 w-64 rounded-2xl" />
           </div>
 
           <section className="min-w-0 flex-1">

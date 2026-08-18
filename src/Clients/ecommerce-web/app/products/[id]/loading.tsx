@@ -11,10 +11,10 @@ export default function ProductDetailLoading() {
 
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-2 lg:gap-16">
           <div className="space-y-3">
-            <div className="shimmer aspect-[4/3] rounded-2xl" />
+            <ShimmerBar className="aspect-[4/3] rounded-2xl" />
             <div className="flex gap-3">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="shimmer h-20 w-24 rounded-xl" />
+                <ShimmerBar key={i} className="h-20 w-24 rounded-xl" />
               ))}
             </div>
           </div>

@@ -8,6 +8,7 @@ import ProductFilters, { SortSelect } from "@/components/ProductFilters";
 import MobileFilterDrawer from "@/components/MobileFilterDrawer";
 import ProductViewControls from "@/components/ProductViewControls";
 import Pagination from "@/components/Pagination";
+import { ShimmerBar } from "@/components/ProductCardSkeleton";
 import { serverFetchJson } from "@/lib/server-fetch";
 import {
   PAGE_SIZE,
@@ -143,7 +144,7 @@ export default async function ProductsPage({
         <div className="flex flex-col gap-8 lg:flex-row">
           <div className="hidden lg:block">
             <Suspense
-              fallback={<div className="shimmer h-96 w-64 rounded-2xl" />}
+              fallback={<ShimmerBar className="h-96 w-64 rounded-2xl" />}
             >
               <ProductFilters facets={facets} />
             </Suspense>
@@ -161,10 +162,10 @@ export default async function ProductsPage({
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Suspense fallback={<div className="shimmer h-9 w-32 rounded-lg" />}>
+                <Suspense fallback={<ShimmerBar className="h-9 w-32 rounded-lg" />}>
                   <ProductViewControls />
                 </Suspense>
-                <Suspense fallback={<div className="shimmer h-9 w-48 rounded-lg" />}>
+                <Suspense fallback={<ShimmerBar className="h-9 w-48 rounded-lg" />}>
                   <SortSelect />
                 </Suspense>
               </div>

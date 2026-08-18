@@ -1,9 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import { useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
-/** next/image üzerine shimmer iskeleti; görsel gelince kaybolur. */
+const MIN_SHIMMER_MS = 700;
+
+/** next/image üzerine soldan sağa akan shimmer; görsel gelince kaybolur. */
 export default function ShimmerImage({
   src,
   alt,
@@ -20,25 +22,42 @@ export default function ShimmerImage({
   style?: CSSProperties;
 }) {
   const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
+  const shownAt = useRef(Date.now());
+  const timer = useRef<number | undefined>(undefined);
   const loaded = loadedSrc === src;
+
+  useEffect(() => {
+    shownAt.current = Date.now();
+    setLoadedSrc(null);
+    return () => {
+      if (timer.current) window.clearTimeout(timer.current);
+    };
+  }, [src]);
 
   return (
     <>
-      {!loaded && <div className="shimmer absolute inset-0 z-[1]" aria-hidden />}
+      {!loaded && (
+        <div className="absolute inset-0 z-[1] overflow-hidden bg-[#d4d4d4]" aria-hidden>
+          <span className="shimmer-wave" />
+        </div>
+      )}
       <Image
         src={src}
         alt={alt}
         fill
         priority={priority}
         sizes={sizes}
-        onLoad={() => setLoadedSrc(src)}
+        onLoad={() => {
+          const wait = Math.max(0, MIN_SHIMMER_MS - (Date.now() - shownAt.current));
+          timer.current = window.setTimeout(() => setLoadedSrc(src), wait);
+        }}
         className={className}
         style={{
           ...style,
           opacity: loaded ? 1 : 0,
           transition: [
             style?.transform ? "transform 200ms ease" : "transform 500ms ease",
-            "opacity 500ms ease",
+            "opacity 400ms ease",
           ].join(", "),
         }}
       />
