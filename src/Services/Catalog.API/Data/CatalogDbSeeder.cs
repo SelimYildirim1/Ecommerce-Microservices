@@ -204,6 +204,8 @@ public static class CatalogDbSeeder
             ("site.email", "destek@yildirimstore.com", "general"),
             ("site.phone", "0850 000 00 00", "general"),
             ("site.address", "Levent Mah. Teknoloji Cad. No:1, İstanbul", "general"),
+            ("site.announcement", "Ücretsiz kargo · Güvenli ödeme · Kolay iade — Yıldırım Store'a hoş geldiniz", "general"),
+            ("site.announcementEnabled", "true", "general"),
             ("commerce.currency", "TRY", "commerce"),
             ("commerce.freeShippingThreshold", "500", "commerce"),
             ("commerce.installmentRates", "{\"3\":0,\"6\":0.02,\"9\":0.04,\"12\":0.06}", "payment"),

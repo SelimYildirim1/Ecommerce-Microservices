@@ -44,6 +44,15 @@ export interface Product {
   metaTitle?: string | null;
   metaDescription?: string | null;
   slug?: string | null;
+  attributes?: ProductAttributeInfo[] | null;
+}
+
+export interface ProductAttributeInfo {
+  code: string;
+  name: string;
+  isVariant: boolean;
+  options?: string | null;
+  sortOrder: number;
 }
 
 export interface PagedResult<T> {
@@ -136,6 +145,16 @@ export function formatPrice(value: number): string {
   );
 }
 
+/** Vitrinde gösterilecek karşılaştırma (üstü çizili) fiyat. */
+export function getCompareAtPrice(product: Product): number | null {
+  const sale = getPrice(product);
+  const candidates = (product.variants ?? [])
+    .map((v) => Number(v.compareAtPrice))
+    .filter((p) => Number.isFinite(p) && p > sale);
+  if (candidates.length === 0) return null;
+  return Math.min(...candidates);
+}
+
 /** Vitrinde gosterilecek fiyat: aktif varyantlarin en dususu. */
 export function getPrice(product: Product): number {
   const direct = Number(product.price);
@@ -188,14 +207,24 @@ const ATTRIBUTE_LABELS: Record<string, string> = {
   material: "Malzeme",
   ram: "RAM",
   storage: "Depolama",
+  cpu: "İşlemci",
+  gpu: "Ekran Kartı",
   screen_size: "Ekran Boyutu",
   volume: "Hacim",
   weight: "Ağırlık",
   dimension: "Ölçü",
-  warranty: "Garanti",
+  warranty: "Garanti Süresi",
 };
 
-export function attributeLabel(code: string): string {
+export function attributeLabel(
+  code: string,
+  attributes?: ProductAttributeInfo[] | null,
+): string {
+  const fromCategory = attributes?.find(
+    (a) => a.code.toLowerCase() === code.toLowerCase(),
+  )?.name;
+  if (fromCategory) return fromCategory;
+
   const known = ATTRIBUTE_LABELS[code.toLowerCase()];
   if (known) return known;
 
@@ -206,7 +235,7 @@ export function attributeLabel(code: string): string {
 
 /**
  * Varyantin `specifics` alanindan secim gruplarini cikarir.
- * Garanti/malzeme gibi varyant olmayan alanlar secim olarak gosterilmez.
+ * Admin'de "varyant oluşturur" işaretli özellikler seçim olarak gösterilir.
  */
 const NON_VARIANT_SPECIFIC_KEYS = new Set([
   "warranty",
@@ -220,14 +249,28 @@ const NON_VARIANT_SPECIFIC_KEYS = new Set([
   "screen_size",
 ]);
 
-export function getVariantOptions(variants: Variant[]): Record<string, string[]> {
+export function getVariantOptions(
+  variants: Variant[],
+  attributes?: ProductAttributeInfo[] | null,
+): Record<string, string[]> {
+  const variantCodes = new Set(
+    (attributes ?? [])
+      .filter((a) => a.isVariant)
+      .map((a) => a.code.toLowerCase()),
+  );
+
   const groups: Record<string, string[]> = {};
 
   for (const variant of variants) {
     if (!variant.isActive || !variant.specifics) continue;
 
     for (const [key, raw] of Object.entries(variant.specifics)) {
-      if (NON_VARIANT_SPECIFIC_KEYS.has(key)) continue;
+      const code = key.toLowerCase();
+      if (variantCodes.size > 0) {
+        if (!variantCodes.has(code)) continue;
+      } else if (NON_VARIANT_SPECIFIC_KEYS.has(code)) {
+        continue;
+      }
       if (raw === null || raw === undefined) continue;
       const value = String(raw);
       if (!value) continue;
@@ -237,7 +280,6 @@ export function getVariantOptions(variants: Variant[]): Record<string, string[]>
     }
   }
 
-  // Tek secenekli gruplar kullaniciya secim sunmaz, gizlenir
   return Object.fromEntries(
     Object.entries(groups).filter(([, values]) => values.length > 1),
   );
@@ -261,12 +303,25 @@ export function findVariant(
 }
 
 /** Sepette gosterilecek varyant etiketi: "Siyah / M" */
-export function describeVariant(variant: Variant | null): string {
+export function describeVariant(
+  variant: Variant | null,
+  attributes?: ProductAttributeInfo[] | null,
+): string {
   if (!variant?.specifics) return "Standart";
 
-  const parts = Object.values(variant.specifics)
-    .filter((v) => v !== null && v !== undefined && String(v).length > 0)
-    .map((v) => String(v));
+  const variantCodes = new Set(
+    (attributes ?? [])
+      .filter((a) => a.isVariant)
+      .map((a) => a.code.toLowerCase()),
+  );
+
+  const parts = Object.entries(variant.specifics)
+    .filter(([key, v]) => {
+      if (v === null || v === undefined || String(v).length === 0) return false;
+      if (variantCodes.size > 0) return variantCodes.has(key.toLowerCase());
+      return !NON_VARIANT_SPECIFIC_KEYS.has(key.toLowerCase());
+    })
+    .map(([, v]) => String(v));
 
   return parts.length > 0 ? parts.join(" / ") : "Standart";
 }

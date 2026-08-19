@@ -62,7 +62,15 @@
   },
   "Cart": {
     "title": "Sepetim",
-    "emptyHint": "Alışverişe başlamak için ürünlere göz atın.",
+    "emptyTitle": "Sepetiniz şu anda boş",
+    "emptyHint": "Beğendiğiniz ürünleri sepete ekleyerek alışverişe başlayabilirsiniz.",
+    "startShopping": "Alışverişe Başla",
+    "featured": "Öne Çıkanlar",
+    "seeAll": "Tümü",
+    "clearCart": "Sepeti temizle",
+    "goToCart": "Sepete git",
+    "alsoBought": "Bunu alanlar bunları da aldı",
+    "unitCount": "{count} adet",
     "summary": "Sipariş özeti",
     "coupon": "Kupon kodu",
     "applyCoupon": "Uygula"

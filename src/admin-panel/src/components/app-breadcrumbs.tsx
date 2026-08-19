@@ -39,6 +39,7 @@ const LABEL_MAP: Record<string, string> = {
   currencies: "Para Birimleri",
   reports: "Raporlar",
   content: "İçerik",
+  banners: "Bannerlar",
   "audit-logs": "Denetim Kayıtları",
   settings: "Ayarlar",
   login: "Giriş",

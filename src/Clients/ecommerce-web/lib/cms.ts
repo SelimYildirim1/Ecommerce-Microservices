@@ -55,7 +55,6 @@ export const getBanners = (placement = "home-slider") =>
   serverFetchJson<Banner[]>(
     `/catalog/cms/banners?placement=${placement}`,
     [],
-    { revalidate: CMS_REVALIDATE },
   );
 
 export const getFooterPages = () =>

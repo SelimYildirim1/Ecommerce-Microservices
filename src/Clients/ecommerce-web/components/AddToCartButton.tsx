@@ -28,6 +28,7 @@ interface Props {
   onAdded?: () => void;
   /** `icon` urun kartindaki kompakt kare buton, digerleri tam genislik. */
   variant?: "solid" | "outline" | "icon";
+  className?: string;
 }
 
 const VARIANT_CLASSES: Record<NonNullable<Props["variant"]>, string> = {
@@ -54,6 +55,7 @@ export default function AddToCartButton({
   label,
   onAdded,
   variant = "solid",
+  className = "",
 }: Props) {
   const [loading, setLoading] = useState(false);
   const [added, setAdded] = useState(false);
@@ -144,6 +146,7 @@ export default function AddToCartButton({
         ${added ? "bg-success text-success-foreground hover:bg-success" : ""}
         ${VARIANT_CLASSES[variant]}
         ${loading ? "cursor-wait" : "cursor-pointer"}
+        ${className}
       `}
     >
       {loading ? (

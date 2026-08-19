@@ -40,9 +40,9 @@ import Image from "next/image";
 import { Loader2, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import toast from "react-hot-toast";
+import Link from "next/link";
 
 const PLACEMENTS = [
-  { value: "home-slider", label: "Ana sayfa slider" },
   { value: "home-strip", label: "Ana sayfa şerit" },
   { value: "category-top", label: "Kategori üstü" },
 ];
@@ -52,7 +52,7 @@ const emptyBanner = (): BannerPayload => ({
   subtitle: "",
   imageUrl: "",
   linkUrl: "",
-  placement: "home-slider",
+  placement: "home-strip",
   sortOrder: 0,
   isActive: true,
   startsAt: null,
@@ -79,7 +79,11 @@ export default function ContentPage() {
       <div>
         <h1 className="text-2xl font-bold">İçerik Yönetimi</h1>
         <p className="text-sm text-muted-foreground">
-          Ana sayfa bannerları ve mağaza statik sayfaları.
+          Ana sayfa kayan banner için sol menüden{" "}
+          <Link href="/banners" className="underline underline-offset-2">
+            Bannerlar
+          </Link>
+          . Bu sekme diğer konumlar (şerit, kategori, mega menü) içindir.
         </p>
       </div>
 
@@ -106,10 +110,11 @@ function BannersTab() {
   const [uploading, setUploading] = useState(false);
   const [draft, setDraft] = useState<(BannerPayload & { id?: string }) | null>(null);
 
-  const { data: banners = [], isLoading } = useQuery({
+  const { data: allBanners = [], isLoading } = useQuery({
     queryKey: ["banners"],
-    queryFn: getBanners,
+    queryFn: () => getBanners(),
   });
+  const banners = allBanners.filter((banner) => banner.placement !== "home-slider");
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["banners"] });
 
@@ -263,7 +268,7 @@ function BannersTab() {
                 <Label htmlFor="banner-title">Başlık</Label>
                 <Input
                   id="banner-title"
-                  value={draft.title}
+                  value={draft.title ?? ""}
                   onChange={(e) => setDraft({ ...draft, title: e.target.value })}
                 />
               </div>
@@ -413,7 +418,7 @@ function BannersTab() {
             <Button
               onClick={() => {
                 if (!draft) return;
-                if (!draft.title.trim() || !draft.imageUrl.trim()) {
+                if (!draft.title?.trim() || !draft.imageUrl.trim()) {
                   toast.error("Başlık ve görsel zorunlu.");
                   return;
                 }

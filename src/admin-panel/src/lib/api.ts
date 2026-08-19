@@ -653,7 +653,11 @@ export const saveSettings = (values: Record<string, string | null>) =>
   });
 
 // --- İçerik yönetimi (Catalog.API) ---
-export const getBanners = () => fetchAt<Banner[]>(CATALOG_ADMIN_API, "/cms/banners");
+export const getBanners = (placement?: string) =>
+  fetchAt<Banner[]>(
+    CATALOG_ADMIN_API,
+    `/cms/banners${placement ? `?placement=${encodeURIComponent(placement)}` : ""}`,
+  );
 
 export const createBanner = (data: BannerPayload) =>
   fetchAt<Banner>(CATALOG_ADMIN_API, "/cms/banners", {
@@ -2032,7 +2036,7 @@ export interface Banner {
 }
 
 export interface BannerPayload {
-  title: string;
+  title?: string | null;
   subtitle?: string | null;
   imageUrl: string;
   linkUrl?: string | null;

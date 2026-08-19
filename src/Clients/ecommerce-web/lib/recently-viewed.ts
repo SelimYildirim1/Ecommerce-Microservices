@@ -7,6 +7,9 @@ export interface RecentlyViewedItem {
   name: string;
   image: string | null;
   price: number;
+  brandName?: string | null;
+  averageRating?: number | null;
+  reviewCount?: number;
 }
 
 const KEY = "ys_recently_viewed";

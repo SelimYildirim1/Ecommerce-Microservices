@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Catalog.API.Controllers;
 
 public record SaveBannerRequest(
-    string Title,
+    string? Title,
     string? Subtitle,
     string ImageUrl,
     string? LinkUrl,
@@ -162,7 +162,7 @@ public class AdminCmsController : ControllerBase
 
     private static void Apply(Banner banner, SaveBannerRequest r)
     {
-        banner.Title = r.Title.Trim();
+        banner.Title = string.IsNullOrWhiteSpace(r.Title) ? "Banner" : r.Title.Trim();
         banner.Subtitle = r.Subtitle?.Trim();
         banner.ImageUrl = r.ImageUrl.Trim();
         banner.LinkUrl = r.LinkUrl?.Trim();

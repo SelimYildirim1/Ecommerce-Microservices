@@ -1,4 +1,5 @@
 using Catalog.API.Data;
+using Catalog.API.Helpers;
 using Catalog.API.Products.GetProducts;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -32,10 +33,14 @@ public class GetProductByIdHandler : IRequestHandler<GetProductByIdQuery, Produc
             .Select(r => (double)r.Rating)
             .ToListAsync(cancellationToken);
 
+        var attributes = await CategoryAttributeLoader.LoadAsync(
+            _context, product.CategoryId, cancellationToken);
+
         return product.ToDto(query.IncludeInactive) with
         {
             AverageRating = ratings.Count > 0 ? Math.Round(ratings.Average(), 2) : null,
-            ReviewCount = ratings.Count
+            ReviewCount = ratings.Count,
+            Attributes = attributes
         };
     }
 }

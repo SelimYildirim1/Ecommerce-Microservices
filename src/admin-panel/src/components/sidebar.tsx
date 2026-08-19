@@ -32,6 +32,7 @@ import {
   ScrollText,
   Menu,
   FileText,
+  Images,
 } from "lucide-react";
 
 type NavItem = {
@@ -70,6 +71,7 @@ const navGroups: NavGroup[] = [
   {
     title: "İçerik",
     items: [
+      { href: "/banners", label: "Bannerlar", icon: Images, permission: "cms" },
       { href: "/menus", label: "Menüler", icon: Menu, permission: "cms" },
       { href: "/contact-messages", label: "İletişim Mesajları", icon: Mail, permission: "content" },
       { href: "/newsletter", label: "Bülten", icon: Megaphone, permission: "content" },

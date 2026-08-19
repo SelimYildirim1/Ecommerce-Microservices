@@ -1,12 +1,15 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using MassTransit;
 using Core.Shared.Events;
 using Order.API.Data;
 using Order.API.Entities;
+using Order.API.Hubs;
 using Order.API.Models;
 using Order.API.Security;
+using Order.API.Services;
 
 namespace Order.API.Controllers;
 
@@ -28,15 +31,18 @@ public class ReturnsController : ControllerBase
     private readonly OrderDbContext _context;
     private readonly ILogger<ReturnsController> _logger;
     private readonly IPublishEndpoint _publishEndpoint;
+    private readonly IHubContext<OrderStatusHub> _hubContext;
 
     public ReturnsController(
         OrderDbContext context,
         ILogger<ReturnsController> logger,
-        IPublishEndpoint publishEndpoint)
+        IPublishEndpoint publishEndpoint,
+        IHubContext<OrderStatusHub> hubContext)
     {
         _context = context;
         _logger = logger;
         _publishEndpoint = publishEndpoint;
+        _hubContext = hubContext;
     }
 
     /// <summary>Admin: tum iade talepleri, istege bagli durum filtresi.</summary>
@@ -252,6 +258,7 @@ public class ReturnsController : ControllerBase
 
         if (order is not null)
         {
+            await OrderStatusRealtime.NotifyAsync(_hubContext, order, _logger);
             await _publishEndpoint.Publish(new OrderStockReleaseEvent
             {
                 OrderId = order.Id,
@@ -313,6 +320,8 @@ public class ReturnsController : ControllerBase
         var previousStatus = order.OrderStatus;
         order.SetStatus("Cancelled");
         await _context.SaveChangesAsync();
+
+        await OrderStatusRealtime.NotifyAsync(_hubContext, order, _logger);
 
         // Paid ise stok düşülmüş olabilir — Submitted'ta henüz düşülmemiş olabilir ama
         // ledger boşsa consumer no-op yapar.

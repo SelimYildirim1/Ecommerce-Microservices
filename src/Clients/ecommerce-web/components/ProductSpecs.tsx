@@ -1,8 +1,13 @@
-import type { Product } from "@/lib/catalog";
+"use client";
 
-/** Varyant specifics alanlarından teknik özellik tablosu üretir. */
+import { useProductVariant } from "./ProductVariantContext";
+import { attributeLabel, type Product, type Variant } from "@/lib/catalog";
+
+/** Seçilen varyantın teknik özellik tablosu; etiketler kategori özellik adından gelir. */
 export default function ProductSpecs({ product }: { product: Product }) {
-  const rows = collectSpecs(product);
+  const ctx = useProductVariant();
+  const selected = ctx?.selectedVariant ?? firstActive(product);
+  const rows = collectSpecs(product, selected);
 
   if (rows.length === 0) return null;
 
@@ -32,32 +37,60 @@ export default function ProductSpecs({ product }: { product: Product }) {
   );
 }
 
-function collectSpecs(product: Product): { key: string; label: string; value: string }[] {
-  const map = new Map<string, Set<string>>();
+function firstActive(product: Product): Variant | null {
+  return (product.variants ?? []).find((v) => v.isActive !== false) ?? null;
+}
 
-  for (const variant of product.variants ?? []) {
-    if (variant.isActive === false) continue;
-    const specifics = variant.specifics;
+function collectSpecs(
+  product: Product,
+  variant: Variant | null,
+): { key: string; label: string; value: string }[] {
+  const sources = variant
+    ? [variant]
+    : (product.variants ?? []).filter((v) => v.isActive !== false);
+  const valuesByKey = new Map<string, Set<string>>();
+
+  for (const item of sources) {
+    const specifics = item.specifics;
     if (!specifics || typeof specifics !== "object") continue;
 
     for (const [key, raw] of Object.entries(specifics)) {
       if (raw == null || raw === "") continue;
-      const value = String(raw);
-      if (!map.has(key)) map.set(key, new Set());
-      map.get(key)!.add(value);
+      if (!valuesByKey.has(key)) valuesByKey.set(key, new Set());
+      valuesByKey.get(key)!.add(String(raw));
     }
   }
 
-  return Array.from(map.entries()).map(([key, values]) => ({
-    key,
-    label: humanize(key),
-    value: Array.from(values).join(", "),
-  }));
-}
+  const attributes = product.attributes ?? [];
+  const seen = new Set<string>();
+  const rows: { key: string; label: string; value: string }[] = [];
 
-function humanize(key: string) {
-  return key
-    .replace(/[_-]+/g, " ")
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  const push = (code: string, label: string) => {
+    const matchKey =
+      [...valuesByKey.keys()].find((k) => k.toLowerCase() === code.toLowerCase()) ??
+      code;
+    const values = valuesByKey.get(matchKey);
+    if (!values || values.size === 0) return;
+    seen.add(matchKey.toLowerCase());
+    rows.push({
+      key: matchKey,
+      label,
+      value: Array.from(values).join(", "),
+    });
+  };
+
+  for (const attr of [...attributes].sort((a, b) => a.sortOrder - b.sortOrder)) {
+    push(attr.code, attr.name);
+  }
+
+  for (const [key, values] of valuesByKey) {
+    if (seen.has(key.toLowerCase())) continue;
+    rows.push({
+      key,
+      label: attributeLabel(key, attributes),
+      value: Array.from(values).join(", "),
+    });
+  }
+
+  return rows;
 }

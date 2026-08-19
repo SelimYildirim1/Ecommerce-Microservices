@@ -25,6 +25,8 @@ public class AdminSettingsController : ControllerBase
         new("site.email", "info@yildirimstore.com", "general", "İletişim e-postası"),
         new("site.phone", "0850 000 00 00", "general", "İletişim telefonu"),
         new("site.address", "", "general", "Şirket adresi"),
+        new("site.announcement", "Ücretsiz kargo · Güvenli ödeme · Kolay iade — Yıldırım Store'a hoş geldiniz", "general", "Üst şerit slogan (sağdan sola kayar; boş bırakırsanız gizlenir)"),
+        new("site.announcementEnabled", "true", "general", "Üst slogan şeridi aktif mi?"),
 
         new("seo.defaultTitle", "Yıldırım Store", "seo", "Varsayılan sayfa başlığı"),
         new("seo.defaultDescription", "En yeni ürünler, en uygun fiyatlarla.", "seo", "Varsayılan meta açıklama"),

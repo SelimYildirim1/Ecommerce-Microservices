@@ -57,6 +57,10 @@ export function searchProducts(params: URLSearchParams) {
   return request<PagedResult<Product>>(`/catalog/products/search?${params}`);
 }
 
+export function getRelatedProducts(productId: string, take = 8) {
+  return request<Product[]>(`/catalog/products/${productId}/related?take=${take}`);
+}
+
 export function getFacets(params: URLSearchParams) {
   return request<ProductFacets>(`/catalog/products/facets?${params}`);
 }

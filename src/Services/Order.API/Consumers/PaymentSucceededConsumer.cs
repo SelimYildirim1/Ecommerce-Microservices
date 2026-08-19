@@ -4,6 +4,7 @@ using Order.API.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.SignalR;
 using Order.API.Hubs;
+using Order.API.Services;
 
 namespace Order.API.Consumers;
 
@@ -54,28 +55,6 @@ public class PaymentSucceededConsumer : IConsumer<PaymentSucceededEvent>
         _logger.LogInformation("Sipariş durumu güncellendi. OrderId={OrderId}, OrderNumber={OrderNumber}, {Previous} -> Paid",
             msg.OrderId, order.OrderNumber, previousStatus);
 
-        // SignalR üzerinden ilgili kullanıcıya gerçek zamanlı bilgi gönder
-        try
-        {
-            var userGroup = OrderStatusHub.GetUserGroupName(order.BuyerId);
-
-            await _hubContext.Clients.Group(userGroup).SendAsync(
-                "OrderStatusUpdated",
-                new
-                {
-                    orderId = order.Id,
-                    orderNumber = order.OrderNumber,
-                    status = order.OrderStatus,
-                    updatedAt = DateTime.UtcNow
-                },
-                context.CancellationToken);
-
-            _logger.LogInformation("SignalR - OrderStatusUpdated gönderildi. OrderId={OrderId}, Status={Status}",
-                order.Id, order.OrderStatus);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "SignalR üzerinden OrderStatusUpdated gönderilirken hata oluştu. OrderId={OrderId}", order.Id);
-        }
+        await OrderStatusRealtime.NotifyAsync(_hubContext, order, _logger, context.CancellationToken);
     }
 }

@@ -8,13 +8,32 @@ interface Props {
   name: string;
   image: string | null;
   price: number;
+  brandName?: string | null;
+  averageRating?: number | null;
+  reviewCount?: number;
 }
 
 /** Ürün detayında mevcut ürünü son görüntülenenlere kaydeder. */
-export default function RecentlyViewedTracker({ id, name, image, price }: Props) {
+export default function RecentlyViewedTracker({
+  id,
+  name,
+  image,
+  price,
+  brandName,
+  averageRating,
+  reviewCount,
+}: Props) {
   useEffect(() => {
-    addRecentlyViewed({ id, name, image, price });
-  }, [id, name, image, price]);
+    addRecentlyViewed({
+      id,
+      name,
+      image,
+      price,
+      brandName,
+      averageRating,
+      reviewCount,
+    });
+  }, [id, name, image, price, brandName, averageRating, reviewCount]);
 
   return null;
 }

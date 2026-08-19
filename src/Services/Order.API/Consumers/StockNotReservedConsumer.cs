@@ -2,6 +2,9 @@ using MassTransit;
 using Core.Shared.Events;
 using Order.API.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.SignalR;
+using Order.API.Hubs;
+using Order.API.Services;
 
 namespace Order.API.Consumers;
 
@@ -9,11 +12,16 @@ public class StockNotReservedConsumer : IConsumer<StockNotReservedEvent>
 {
     private readonly OrderDbContext _dbContext;
     private readonly ILogger<StockNotReservedConsumer> _logger;
+    private readonly IHubContext<OrderStatusHub> _hubContext;
 
-    public StockNotReservedConsumer(OrderDbContext dbContext, ILogger<StockNotReservedConsumer> logger)
+    public StockNotReservedConsumer(
+        OrderDbContext dbContext,
+        ILogger<StockNotReservedConsumer> logger,
+        IHubContext<OrderStatusHub> hubContext)
     {
         _dbContext = dbContext;
         _logger = logger;
+        _hubContext = hubContext;
     }
 
     public async Task Consume(ConsumeContext<StockNotReservedEvent> context)
@@ -33,5 +41,6 @@ public class StockNotReservedConsumer : IConsumer<StockNotReservedEvent>
         await _dbContext.SaveChangesAsync();
 
         _logger.LogInformation("Sipariş durumu güncellendi: StockFailed. OrderId={OrderId}", msg.OrderId);
+        await OrderStatusRealtime.NotifyAsync(_hubContext, order, _logger, context.CancellationToken);
     }
 }

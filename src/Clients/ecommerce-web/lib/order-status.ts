@@ -48,6 +48,60 @@ export function getOrderStatusInfo(status: string) {
   }
 }
 
+/** Müşteri bildirimleri — teknik durum kodu ve sipariş numarası yok. */
+export function getOrderNotificationCopy(status: string): {
+  title: string;
+  body: string;
+} {
+  switch (status) {
+    case "Paid":
+      return {
+        title: "Ödemeniz alındı",
+        body: "Ödemeniz onaylandı. Siparişiniz hazırlanıyor.",
+      };
+    case "Submitted":
+      return {
+        title: "Siparişiniz alındı",
+        body: "Siparişiniz işleme alındı.",
+      };
+    case "Shipped":
+      return {
+        title: "Siparişiniz kargoya verildi",
+        body: "Siparişiniz yola çıktı. Takibi sipariş detayından yapabilirsiniz.",
+      };
+    case "Delivered":
+      return {
+        title: "Siparişiniz teslim edildi",
+        body: "Siparişiniz teslim edildi. İyi günlerde kullanın.",
+      };
+    case "Cancelled":
+      return {
+        title: "Siparişiniz iptal edildi",
+        body: "Siparişiniz iptal edildi. Uygunsa ücret iadesi hesabınıza yansır.",
+      };
+    case "Returned":
+      return {
+        title: "İadeniz tamamlandı",
+        body: "İade işleminiz tamamlandı.",
+      };
+    case "StockFailed":
+      return {
+        title: "Siparişiniz tamamlanamadı",
+        body: "Stok yetersizliği nedeniyle siparişiniz oluşturulamadı.",
+      };
+    case "Failed":
+      return {
+        title: "Ödeme alınamadı",
+        body: "Ödeme işlemi tamamlanamadı. Lütfen tekrar deneyin.",
+      };
+    default:
+      return {
+        title: "Siparişiniz güncellendi",
+        body: "Siparişinizde bir güncelleme var. Detayları siparişlerinizden görebilirsiniz.",
+      };
+  }
+}
+
 export function getPaymentMethodLabel(method?: string | null) {
   switch (method) {
     case "card":

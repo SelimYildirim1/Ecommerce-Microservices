@@ -22,7 +22,16 @@ public record ProductDto(
     string? MetaDescription = null,
     List<ProductImageDto>? Images = null,
     double? AverageRating = null,
-    int ReviewCount = 0);
+    int ReviewCount = 0,
+    List<ProductAttributeInfoDto>? Attributes = null);
+
+/// <summary>Kategori özelliği: vitrinde Türkçe ad ve varyant seçimi için.</summary>
+public record ProductAttributeInfoDto(
+    string Code,
+    string Name,
+    bool IsVariant,
+    string? Options,
+    int SortOrder);
 
 public record ProductImageDto(
     Guid Id,

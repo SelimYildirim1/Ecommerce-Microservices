@@ -4,6 +4,7 @@ import ProductPurchasePanel from "@/components/ProductPurchasePanel";
 import ProductReviews from "@/components/ProductReviews";
 import ProductQnA from "@/components/ProductQnA";
 import ProductSpecs from "@/components/ProductSpecs";
+import { ProductVariantProvider } from "@/components/ProductVariantContext";
 import RelatedProducts from "@/components/RelatedProducts";
 import InstallmentTable from "@/components/InstallmentTable";
 import RecentlyViewed from "@/components/RecentlyViewed";
@@ -26,7 +27,7 @@ import { breadcrumbJsonLd } from "@/lib/jsonld";
 
 async function getProduct(id: string): Promise<Product | null> {
   return serverFetchJson<Product | null>(`/catalog/products/${id}`, null, {
-    revalidate: 60,
+    revalidate: 10,
   });
 }
 
@@ -169,6 +170,9 @@ export default async function ProductDetailPage({
         name={product.name}
         image={product.primaryImageUrl}
         price={price}
+        brandName={product.brandName}
+        averageRating={product.averageRating}
+        reviewCount={product.reviewCount}
       />
 
       <script
@@ -244,25 +248,27 @@ export default async function ProductDetailPage({
               Ürün kodu: {product.id.substring(0, 8).toUpperCase()}
             </p>
 
-            <div className="mt-6">
-              <ProductPurchasePanel product={product} />
-            </div>
+            <ProductVariantProvider product={product}>
+              <div className="mt-6">
+                <ProductPurchasePanel product={product} />
+              </div>
 
-            <InstallmentTable
-              price={price}
-              ratesJson={settings["commerce.installmentRates"]}
-            />
+              <InstallmentTable
+                price={price}
+                ratesJson={settings["commerce.installmentRates"]}
+              />
 
-            <div className="mt-8">
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider">
-                Ürün Açıklaması
-              </h2>
-              <p className="leading-relaxed text-gray-500">
-                {product.description || "Bu ürün için henüz bir açıklama eklenmemiş."}
-              </p>
-            </div>
+              <div className="mt-8">
+                <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider">
+                  Ürün Açıklaması
+                </h2>
+                <p className="leading-relaxed text-gray-500">
+                  {product.description || "Bu ürün için henüz bir açıklama eklenmemiş."}
+                </p>
+              </div>
 
-            <ProductSpecs product={product} />
+              <ProductSpecs product={product} />
+            </ProductVariantProvider>
 
             <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Feature icon={Truck} title="Ücretsiz Kargo" note="500 TL ve üzeri" />

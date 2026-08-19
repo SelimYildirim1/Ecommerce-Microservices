@@ -5,6 +5,7 @@ import AddToCartButton from "./AddToCartButton";
 import FavoriteButton from "./FavoriteButton";
 import SizeChartModal, { hasSizeLikeAttributes } from "./SizeChartModal";
 import StockAlertForm from "./StockAlertForm";
+import { useProductVariant } from "./ProductVariantContext";
 import {
   attributeLabel,
   describeVariant,
@@ -22,22 +23,29 @@ import {
  * secim alanlari gizlenir ve panel eski davranisi korur.
  */
 export default function ProductPurchasePanel({ product }: { product: Product }) {
+  const ctx = useProductVariant();
   const activeVariants = useMemo(
-    () => (product.variants ?? []).filter((v) => v.isActive),
-    [product.variants],
+    () => ctx?.activeVariants ?? (product.variants ?? []).filter((v) => v.isActive),
+    [ctx?.activeVariants, product.variants],
   );
 
-  const options = useMemo(() => getVariantOptions(activeVariants), [activeVariants]);
+  const options = useMemo(
+    () => ctx?.options ?? getVariantOptions(activeVariants, product.attributes),
+    [ctx?.options, activeVariants, product.attributes],
+  );
   const optionKeys = Object.keys(options);
 
-  const [selection, setSelection] = useState<Record<string, string>>(() =>
+  const [localSelection, setLocalSelection] = useState<Record<string, string>>(() =>
     Object.fromEntries(optionKeys.map((key) => [key, options[key][0]])),
   );
   const [quantity, setQuantity] = useState(1);
 
+  const selection = ctx?.selection ?? localSelection;
+  const setSelection = ctx?.setSelection ?? setLocalSelection;
+
   const selectedVariant: Variant | null = useMemo(
-    () => findVariant(activeVariants, selection),
-    [activeVariants, selection],
+    () => ctx?.selectedVariant ?? findVariant(activeVariants, selection),
+    [ctx?.selectedVariant, activeVariants, selection],
   );
 
   const price = selectedVariant ? Number(selectedVariant.price) : getPrice(product);
@@ -80,7 +88,9 @@ export default function ProductPurchasePanel({ product }: { product: Product }) 
           {optionKeys.map((key) => (
             <div key={key}>
               <div className="flex items-center gap-2 mb-2">
-                <h3 className="text-sm font-semibold text-foreground">{attributeLabel(key)}</h3>
+                <h3 className="text-sm font-semibold text-foreground">
+                  {attributeLabel(key, product.attributes)}
+                </h3>
                 <span className="text-sm text-muted-foreground">{selection[key]}</span>
               </div>
 
@@ -159,7 +169,7 @@ export default function ProductPurchasePanel({ product }: { product: Product }) 
               id: product.id,
               name: product.name,
               price,
-              color: describeVariant(selectedVariant),
+              color: describeVariant(selectedVariant, product.attributes),
               pictureUrl: product.primaryImageUrl,
               variantId: selectedVariant?.id ?? null,
             }}
@@ -187,7 +197,7 @@ export default function ProductPurchasePanel({ product }: { product: Product }) 
                 id: product.id,
                 name: product.name,
                 price,
-                color: describeVariant(selectedVariant),
+                color: describeVariant(selectedVariant, product.attributes),
                 pictureUrl: product.primaryImageUrl,
                 variantId: selectedVariant?.id ?? null,
               }}

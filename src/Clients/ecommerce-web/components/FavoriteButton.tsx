@@ -8,9 +8,15 @@ interface Props {
   productId: string;
   /** `overlay` urun kartinin uzerinde durur, `inline` detay sayfasindaki buton. */
   variant?: "overlay" | "inline";
+  /** Mini kartlarda daha kucuk kalp. */
+  size?: "md" | "sm";
 }
 
-export default function FavoriteButton({ productId, variant = "overlay" }: Props) {
+export default function FavoriteButton({
+  productId,
+  variant = "overlay",
+  size = "md",
+}: Props) {
   const { user } = useAuth();
   const { isFavorite, toggle } = useFavorites();
   const router = useRouter();
@@ -50,20 +56,21 @@ export default function FavoriteButton({ productId, variant = "overlay" }: Props
   }
 
   return (
-    <button
-      onClick={handleClick}
-      title={label}
-      aria-label={label}
-      className={`absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-full
-        bg-white shadow-sm transition-transform hover:scale-110
-        ${active ? "text-red-500" : "text-gray-400"}`}
+      <button
+        type="button"
+        onClick={handleClick}
+        title={label}
+        aria-label={label}
+        className={`absolute z-10 flex items-center justify-center rounded-full bg-white shadow-sm transition-transform hover:scale-110 ${
+        size === "sm" ? "right-1.5 top-1.5 h-6 w-6" : "right-4 top-4 h-8 w-8"
+      } ${active ? "text-red-500" : "text-gray-400"}`}
     >
-      <HeartIcon filled={active} />
+      <HeartIcon filled={active} className={size === "sm" ? "h-3 w-3" : "h-4 w-4"} />
     </button>
   );
 }
 
-function HeartIcon({ filled }: { filled: boolean }) {
+function HeartIcon({ filled, className = "h-4 w-4" }: { filled: boolean; className?: string }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -71,7 +78,7 @@ function HeartIcon({ filled }: { filled: boolean }) {
       viewBox="0 0 24 24"
       strokeWidth={1.6}
       stroke="currentColor"
-      className="w-4 h-4"
+      className={className}
     >
       <path
         strokeLinecap="round"

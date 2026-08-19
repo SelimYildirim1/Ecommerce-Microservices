@@ -10,7 +10,11 @@ import { useAuth } from "@/context/AuthContext";
 import { API_URL, SIGNALR_URL } from "@/lib/api";
 import { resolveMediaUrl } from "@/lib/catalog";
 import { notify } from "@/lib/feedback";
-import { getOrderStatusInfo, type Order } from "@/lib/order-status";
+import {
+  getOrderNotificationCopy,
+  getOrderStatusInfo,
+  type Order,
+} from "@/lib/order-status";
 
 export default function OrdersList({ limit }: { limit?: number }) {
   const { user, isLoading } = useAuth();
@@ -81,10 +85,13 @@ export default function OrdersList({ limit }: { limit?: number }) {
           ),
         );
 
-        if (payload.status === "Paid") {
-          notify.success("Ödemeniz onaylandı, sipariş durumu güncellendi.");
+        const copy = getOrderNotificationCopy(payload.status);
+        if (payload.status === "Failed" || payload.status === "StockFailed") {
+          notify.error(copy.body);
+        } else if (payload.status === "Cancelled") {
+          notify.info(copy.title);
         } else {
-          notify.info(`Sipariş durumu güncellendi: ${payload.status}`);
+          notify.success(copy.title);
         }
       },
     );

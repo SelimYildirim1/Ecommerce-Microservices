@@ -546,9 +546,7 @@ function DynamicAttributeField({
       : [];
   }, [options, dataType, attribute.attributeCode]);
 
-  const useSelect =
-    selectOptions.length > 0 &&
-    (dataType === "Select" || dataType === "Color" || attribute.attributeCode === "color");
+  const useSelect = selectOptions.length > 0 && dataType !== "Boolean";
 
   return (
     <div className="space-y-1">

@@ -17,13 +17,18 @@ import toast from "react-hot-toast";
 const MULTILINE_KEYS = new Set([
   "site.description",
   "site.address",
+  "site.announcement",
   "seo.defaultDescription",
   "commerce.installmentRates",
   "commerce.transferAccounts",
 ]);
 
 /** Acik/kapali secimi olan ayarlar. */
-const BOOLEAN_KEYS = new Set(["commerce.pricesIncludeVat", "commerce.codEnabled"]);
+const BOOLEAN_KEYS = new Set([
+  "commerce.pricesIncludeVat",
+  "commerce.codEnabled",
+  "site.announcementEnabled",
+]);
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();

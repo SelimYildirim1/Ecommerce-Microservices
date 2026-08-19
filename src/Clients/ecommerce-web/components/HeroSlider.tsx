@@ -2,117 +2,209 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface HeroSlide {
   id: string;
-  title: string;
-  subtitle?: string | null;
   imageUrl: string;
   linkUrl?: string | null;
 }
 
 const AUTOPLAY_MS = 5000;
+const SWIPE_PX = 48;
 
 /**
- * Ana sayfa hero alani. Panelden gelen bannerlari sirayla gosterir;
- * tek banner varsa oklar gizlenir ve otomatik gecis durur.
- * Performans: yalnizca aktif + komsu slayt gorselleri yuklenir.
+ * Ana sayfa hero: panelden gelen görseller. Yazı görselin içinde kabul edilir.
+ * Birden fazla slaytta 5 sn otomatik kayar; parmak / fare ile kaydırılabilir.
  */
 export default function HeroSlider({ slides }: { slides: HeroSlide[] }) {
   const [index, setIndex] = useState(0);
-  const [loaded, setLoaded] = useState<Set<number>>(() => new Set([0]));
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
   const total = slides.length;
 
-  useEffect(() => {
-    if (total < 2) return;
+  const wrapRef = useRef<HTMLElement>(null);
+  const startX = useRef(0);
+  const startY = useRef(0);
+  const axis = useRef<"h" | "v" | null>(null);
+  const didSwipe = useRef(false);
+  const dragXRef = useRef(0);
 
-    const timer = setInterval(() => setIndex((i) => (i + 1) % total), AUTOPLAY_MS);
+  const goBy = useCallback(
+    (dir: number) => {
+      if (total < 2 || dir === 0) return;
+      setIndex((i) => (i + dir + total) % total);
+    },
+    [total],
+  );
+
+  useEffect(() => {
+    if (total < 2 || dragging) return;
+    const timer = setInterval(() => goBy(1), AUTOPLAY_MS);
     return () => clearInterval(timer);
-  }, [total, index]);
+  }, [total, index, dragging, goBy]);
 
+  /** Mac trackpad iki parmak yatay kaydırma `wheel` üretir; sürükleme değil. */
   useEffect(() => {
-    if (total === 0) return;
-    const neighbors = [
-      index,
-      (index + 1) % total,
-      (index - 1 + total) % total,
-    ];
-    setLoaded((prev) => {
-      const next = new Set(prev);
-      let changed = false;
-      for (const i of neighbors) {
-        if (!next.has(i)) {
-          next.add(i);
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-  }, [index, total]);
+    const el = wrapRef.current;
+    if (!el || total < 2) return;
+
+    let lockedUntil = 0;
+    let acc = 0;
+    let idle: ReturnType<typeof setTimeout> | null = null;
+
+    const onWheel = (e: WheelEvent) => {
+      if (dragging) return;
+      const scale = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 800 : 1;
+      const dx = e.deltaX * scale;
+      const dy = e.deltaY * scale;
+      if (Math.abs(dx) < 6 || Math.abs(dx) < Math.abs(dy)) return;
+
+      e.preventDefault();
+      acc += dx;
+
+      if (idle) clearTimeout(idle);
+      idle = setTimeout(() => {
+        acc = 0;
+      }, 80);
+
+      const now = Date.now();
+      if (now < lockedUntil) return;
+      if (Math.abs(acc) < 36) return;
+
+      goBy(acc > 0 ? 1 : -1);
+      acc = 0;
+      lockedUntil = now + 520;
+    };
+
+    el.addEventListener("wheel", onWheel, { passive: false, capture: true });
+    return () => {
+      el.removeEventListener("wheel", onWheel, { capture: true });
+      if (idle) clearTimeout(idle);
+    };
+  }, [total, dragging, goBy]);
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (total < 2 || e.button !== 0) return;
+    startX.current = e.clientX;
+    startY.current = e.clientY;
+    axis.current = null;
+    didSwipe.current = false;
+    dragXRef.current = 0;
+    setDragging(true);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!dragging || total < 2) return;
+    const dx = e.clientX - startX.current;
+    const dy = e.clientY - startY.current;
+
+    if (!axis.current) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      axis.current = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
+      if (axis.current === "v") return;
+    }
+    if (axis.current !== "h") return;
+
+    e.preventDefault();
+    dragXRef.current = dx;
+    didSwipe.current = Math.abs(dx) > 8;
+    setDragX(dx);
+  };
+
+  const finishDrag = (pointerId: number, target: HTMLElement) => {
+    if (!dragging) return;
+    const dx = dragXRef.current;
+    const width = wrapRef.current?.offsetWidth ?? 1;
+    const threshold = Math.max(SWIPE_PX, width * 0.15);
+
+    if (axis.current === "h" && Math.abs(dx) >= threshold) {
+      goBy(dx < 0 ? 1 : -1);
+    }
+
+    dragXRef.current = 0;
+    axis.current = null;
+    setDragX(0);
+    setDragging(false);
+    try {
+      target.releasePointerCapture(pointerId);
+    } catch {
+      /* zaten bırakılmış olabilir */
+    }
+  };
+
+  const onPointerUp = (e: React.PointerEvent) => {
+    finishDrag(e.pointerId, e.currentTarget as HTMLElement);
+  };
+
+  const onClickCapture = (e: React.MouseEvent) => {
+    if (!didSwipe.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+    didSwipe.current = false;
+  };
 
   if (total === 0) return null;
 
   const active = slides[Math.min(index, total - 1)];
+  const href = active.linkUrl?.trim() || null;
+  const trackStyle = {
+    transform: `translateX(calc(${-index * 100}% + ${dragX}px))`,
+  };
 
   return (
-    <section className="relative flex h-[62vh] min-h-[460px] w-full items-center overflow-hidden bg-cream">
-      {slides.map((slide, i) => {
-        if (!loaded.has(i)) return null;
-        return (
-          <div
-            key={slide.id}
-            aria-hidden={i !== index}
-            className={`absolute inset-0 z-0 transition-opacity duration-700 ${
-              i === index ? "opacity-90" : "opacity-0"
-            }`}
-          >
+    <section
+      ref={wrapRef}
+      className="relative h-[62vh] min-h-[460px] w-full overflow-hidden overscroll-x-contain bg-cream touch-pan-y"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      onClickCapture={onClickCapture}
+    >
+      <div
+        className={`flex h-full ${dragging ? "" : "transition-transform duration-500 ease-out"}`}
+        style={trackStyle}
+      >
+        {slides.map((slide, i) => (
+          <div key={slide.id} className="relative h-full min-w-full shrink-0">
             <Image
               src={slide.imageUrl}
               alt=""
               fill
               priority={i === 0}
+              draggable={false}
               sizes="100vw"
-              className="object-cover object-right"
+              className="pointer-events-none select-none object-cover object-center"
             />
           </div>
-        );
-      })}
-
-      <div className="absolute inset-0 z-10 w-full bg-gradient-to-r from-white via-white/85 to-transparent md:w-3/4 lg:w-2/3" />
-
-      <div className="relative z-20 mx-auto w-full max-w-[1600px] px-6 md:px-12">
-        <div className="max-w-xl">
-          <p className="mb-4 text-sm font-semibold uppercase tracking-[0.2em] text-gray-500">
-            Yıldırım Store
-          </p>
-
-          <h1 className="font-display mb-6 text-5xl font-bold leading-tight text-gray-900 md:text-7xl">
-            {active.title}
-          </h1>
-
-          {active.subtitle && (
-            <p className="mb-8 max-w-md text-lg leading-relaxed text-gray-600">
-              {active.subtitle}
-            </p>
-          )}
-
-          <Link
-            href={active.linkUrl || "/products"}
-            className="group inline-flex items-center gap-3 rounded-lg bg-foreground px-8 py-4 font-medium text-white transition-colors hover:bg-gray-800"
-          >
-            Alışverişe Başla
-            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-          </Link>
-        </div>
+        ))}
       </div>
+
+      {href &&
+        (/^https?:\/\//i.test(href) ? (
+          <a
+            href={href}
+            className="absolute inset-0 z-20 touch-pan-y"
+            aria-label="Banner bağlantısı"
+            draggable={false}
+          />
+        ) : (
+          <Link
+            href={href}
+            className="absolute inset-0 z-20 touch-pan-y"
+            aria-label="Banner bağlantısı"
+            draggable={false}
+          />
+        ))}
 
       {total > 1 && (
         <div
-          className="absolute bottom-6 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 md:bottom-8"
+          className="absolute bottom-6 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/20 px-2 py-1.5 backdrop-blur-sm md:bottom-8"
           role="tablist"
           aria-label="Banner slaytları"
+          onPointerDown={(e) => e.stopPropagation()}
         >
           {slides.map((slide, i) => {
             const isActive = i === index;
@@ -123,17 +215,21 @@ export default function HeroSlider({ slides }: { slides: HeroSlide[] }) {
                 role="tab"
                 aria-selected={isActive}
                 aria-label={`${i + 1}. slayt`}
-                onClick={() => setIndex(i)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIndex(i);
+                }}
                 className={`relative h-2.5 overflow-hidden rounded-full transition-all duration-300 ${
                   isActive
-                    ? "w-8 bg-gray-300"
-                    : "w-2.5 bg-gray-300 hover:bg-gray-400"
+                    ? "w-8 bg-white/40"
+                    : "w-2.5 bg-white/40 hover:bg-white/60"
                 }`}
               >
-                {isActive && (
+                {isActive && !dragging && (
                   <span
                     key={index}
-                    className="hero-progress absolute inset-0 origin-left rounded-full bg-foreground"
+                    className="hero-progress absolute inset-0 origin-left rounded-full bg-white"
                     style={{ animationDuration: `${AUTOPLAY_MS}ms` }}
                   />
                 )}

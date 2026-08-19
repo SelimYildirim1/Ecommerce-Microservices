@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using MassTransit;
 using Core.Shared.Events;
 using Order.API.Data;
 using Order.API.Domain.AggregatesModel.OrderAggregate;
+using Order.API.Hubs;
 using Order.API.Security;
 using Order.API.Services;
 using System.Globalization;
@@ -21,11 +23,16 @@ public class OrderController : ControllerBase
 {
     private readonly OrderDbContext _context;
     private readonly IPublishEndpoint _publishEndpoint;
+    private readonly IHubContext<OrderStatusHub> _hubContext;
 
-    public OrderController(OrderDbContext context, IPublishEndpoint publishEndpoint)
+    public OrderController(
+        OrderDbContext context,
+        IPublishEndpoint publishEndpoint,
+        IHubContext<OrderStatusHub> hubContext)
     {
         _context = context;
         _publishEndpoint = publishEndpoint;
+        _hubContext = hubContext;
     }
 
     /// <summary>
@@ -324,6 +331,8 @@ public class OrderController : ControllerBase
             CreatedAt = DateTime.UtcNow
         });
         await _context.SaveChangesAsync();
+
+        await OrderStatusRealtime.NotifyAsync(_hubContext, order);
 
         if (request.Status == "Shipped" && !string.IsNullOrWhiteSpace(order.EmailAddress))
         {

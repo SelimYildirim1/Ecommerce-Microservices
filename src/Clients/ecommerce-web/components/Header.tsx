@@ -144,7 +144,7 @@ export default function Header() {
           </Link>
 
           <div className="relative hidden min-w-0 flex-1 md:block md:max-w-none lg:mx-2">
-            <Suspense fallback={<div className="h-11 w-full rounded-lg bg-muted" />}>
+            <Suspense fallback={<div className="h-11 w-full rounded-full bg-muted" />}>
               <SearchBox />
             </Suspense>
           </div>
@@ -259,7 +259,7 @@ export default function Header() {
         </div>
 
         <div className="px-4 pb-3 md:hidden">
-          <Suspense fallback={<div className="h-11 w-full rounded-lg bg-muted" />}>
+          <Suspense fallback={<div className="h-11 w-full rounded-full bg-muted" />}>
             <SearchBox />
           </Suspense>
         </div>

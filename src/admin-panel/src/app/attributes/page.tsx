@@ -32,6 +32,103 @@ import { Tags, Plus, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import toast from "react-hot-toast";
 
+function parseOptions(raw: string | null | undefined): string[] {
+  if (!raw?.trim()) return [];
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function serializeOptions(items: string[]): string {
+  return items.map((s) => s.trim()).filter(Boolean).join(",");
+}
+
+function AttributeOptionsEditor({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const [items, setItems] = useState(() => parseOptions(value));
+  const [draft, setDraft] = useState("");
+
+  const commit = (next: string[]) => {
+    setItems(next);
+    onChange(serializeOptions(next));
+  };
+
+  const add = () => {
+    const next = draft.replaceAll(",", "").trim();
+    if (!next) return;
+    const exists = items.some(
+      (item) => item.toLocaleLowerCase("tr-TR") === next.toLocaleLowerCase("tr-TR")
+    );
+    if (exists) {
+      setDraft("");
+      return;
+    }
+    commit([...items, next]);
+    setDraft("");
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label htmlFor="attr-option-draft">Seçenekler</Label>
+      <p className="text-xs text-muted-foreground">
+        Ürün formunda açılır liste olarak gösterilir. Örn: Kırmızı, Mavi, Siyah
+      </p>
+
+      {items.length > 0 && (
+        <ul className="max-h-48 space-y-2 overflow-y-auto rounded-md border p-2">
+          {items.map((item, index) => (
+            <li key={`${item}-${index}`} className="flex items-center gap-2">
+              <Input
+                value={item}
+                onChange={(e) => {
+                  const next = [...items];
+                  next[index] = e.target.value.replaceAll(",", "");
+                  commit(next);
+                }}
+                className="h-8"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                title="Seçeneği sil"
+                onClick={() => commit(items.filter((_, i) => i !== index))}
+              >
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex gap-2">
+        <Input
+          id="attr-option-draft"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              add();
+            }
+          }}
+          placeholder="Yeni seçenek yazıp Ekle'ye basın"
+        />
+        <Button type="button" variant="outline" onClick={add}>
+          <Plus className="mr-1 h-4 w-4" />
+          Ekle
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 const DATA_TYPES = ["Text", "Number", "Select", "Color", "Boolean"] as const;
 
 const DATA_TYPE_COLORS: Record<string, string> = {
@@ -146,8 +243,14 @@ export default function AttributesPage() {
                         {attr.dataType}
                       </Badge>
                     </TableCell>
-                    <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
-                      {attr.options || "-"}
+                    <TableCell className="max-w-[240px] text-sm text-muted-foreground">
+                      {attr.options ? (
+                        <span className="line-clamp-2">
+                          {parseOptions(attr.options).join(", ")}
+                        </span>
+                      ) : (
+                        "-"
+                      )}
                     </TableCell>
                     <TableCell>
                       {attr.isRequired ? (
@@ -203,7 +306,7 @@ export default function AttributesPage() {
       </Card>
 
       <Dialog open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>{editing?.id ? "Özelliği Düzenle" : "Yeni Özellik"}</DialogTitle>
           </DialogHeader>
@@ -253,18 +356,14 @@ export default function AttributesPage() {
               </select>
             </div>
 
-            {editing?.dataType === "Select" && (
-              <div className="space-y-2">
-                <Label htmlFor="attr-options">Seçenekler (virgülle ayırın)</Label>
-                <Input
-                  id="attr-options"
-                  value={editing?.options ?? ""}
-                  onChange={(e) =>
-                    setEditing((prev) => (prev ? { ...prev, options: e.target.value } : prev))
-                  }
-                  placeholder="S, M, L, XL"
-                />
-              </div>
+            {editing && editing.dataType !== "Boolean" && (
+              <AttributeOptionsEditor
+                key={editing.id ?? "new"}
+                value={editing.options ?? ""}
+                onChange={(options) =>
+                  setEditing((prev) => (prev ? { ...prev, options } : prev))
+                }
+              />
             )}
 
             <div className="flex gap-6">

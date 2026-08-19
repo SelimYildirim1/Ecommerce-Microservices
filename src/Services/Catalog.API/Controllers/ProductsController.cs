@@ -190,7 +190,7 @@ public class ProductsController : ControllerBase
     [HttpGet("popular-searches")]
     public async Task<IActionResult> GetPopularSearches([FromQuery] int take = 8)
     {
-        take = Math.Clamp(take, 1, 20);
+        take = Math.Clamp(take, 1, 24);
         var items = await _context.SearchQueryLogs
             .AsNoTracking()
             .OrderByDescending(s => s.HitCount)
@@ -199,6 +199,72 @@ public class ProductsController : ControllerBase
             .Select(s => new { s.Query, s.HitCount })
             .ToListAsync();
         return Ok(items);
+    }
+
+    /// <summary>
+    /// Header arama önerileri: eşleşen kategori, marka ve popüler sorgular.
+    /// </summary>
+    [HttpGet("suggest")]
+    public async Task<IActionResult> Suggest([FromQuery] string? q, [FromQuery] int take = 8, CancellationToken ct = default)
+    {
+        take = Math.Clamp(take, 1, 12);
+        var term = (q ?? string.Empty).Trim();
+        if (term.Length < 2)
+        {
+            return Ok(new SearchSuggestDto([], [], []));
+        }
+
+        var like = $"%{term}%";
+        var termLower = term.ToLower();
+
+        var categories = await _context.Categories
+            .AsNoTracking()
+            .Where(c => EF.Functions.ILike(c.Name, like))
+            .OrderBy(c => c.SortOrder)
+            .ThenBy(c => c.Name)
+            .Take(take)
+            .Select(c => new SearchSuggestItemDto(c.Id, c.Name, c.Slug, c.ImageUrl))
+            .ToListAsync(ct);
+
+        var brands = await _context.Brands
+            .AsNoTracking()
+            .Where(b => EF.Functions.ILike(b.Name, like))
+            .OrderBy(b => b.Name)
+            .Take(take)
+            .Select(b => new SearchSuggestItemDto(b.Id, b.Name, b.Slug, b.LogoUrl))
+            .ToListAsync(ct);
+
+        var queries = await _context.SearchQueryLogs
+            .AsNoTracking()
+            .Where(s => EF.Functions.ILike(s.Query, like) && s.Query != termLower)
+            .OrderByDescending(s => s.HitCount)
+            .ThenByDescending(s => s.LastSearchedAt)
+            .Take(take)
+            .Select(s => s.Query)
+            .ToListAsync(ct);
+
+        if (queries.Count < take)
+        {
+            var names = await _context.Products
+                .AsNoTracking()
+                .Where(p => p.IsActive && EF.Functions.ILike(p.Name, like))
+                .OrderBy(p => p.Name)
+                .Select(p => p.Name)
+                .Take(take * 2)
+                .ToListAsync(ct);
+
+            foreach (var name in names)
+            {
+                if (queries.Count >= take) break;
+                var trimmed = name.Trim();
+                if (trimmed.Length > 48) continue;
+                if (queries.Any(x => string.Equals(x, trimmed, StringComparison.OrdinalIgnoreCase))) continue;
+                if (string.Equals(trimmed, term, StringComparison.OrdinalIgnoreCase)) continue;
+                queries.Add(trimmed);
+            }
+        }
+
+        return Ok(new SearchSuggestDto(categories, brands, queries));
     }
 
     private async Task LogSearchQueryAsync(string raw)
@@ -281,3 +347,10 @@ public class ProductsController : ControllerBase
 public record SetProductStatusRequest(bool IsActive);
 
 public record UpdateVariantRequestBody(decimal? Price, int? StockQuantity, bool? IsActive);
+
+public record SearchSuggestItemDto(Guid Id, string Name, string? Slug, string? ImageUrl);
+
+public record SearchSuggestDto(
+    IReadOnlyList<SearchSuggestItemDto> Categories,
+    IReadOnlyList<SearchSuggestItemDto> Brands,
+    IReadOnlyList<string> Queries);

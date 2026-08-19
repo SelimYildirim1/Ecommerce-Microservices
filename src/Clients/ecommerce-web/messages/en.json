@@ -62,7 +62,15 @@
   },
   "Cart": {
     "title": "Your Cart",
-    "emptyHint": "Browse products to start shopping.",
+    "emptyTitle": "Your cart is currently empty",
+    "emptyHint": "Add the products you like to your cart to start shopping.",
+    "startShopping": "Start Shopping",
+    "featured": "Featured",
+    "seeAll": "All",
+    "clearCart": "Clear cart",
+    "goToCart": "Go to cart",
+    "alsoBought": "People also bought",
+    "unitCount": "{count} pcs",
     "summary": "Order summary",
     "coupon": "Coupon code",
     "applyCoupon": "Apply"
