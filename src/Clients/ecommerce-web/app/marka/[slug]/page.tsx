@@ -19,12 +19,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const brand = await getBrandBySlug(slug);
   if (!brand) return { title: "Marka bulunamadı" };
 
+  // Site adini kok layout'taki title template'i ekler; burada tekrar
+  // eklenirse basligin sonunda iki kez cikar.
+  const title = brand.metaTitle || brand.name;
+  const description =
+    brand.metaDescription ||
+    brand.description?.slice(0, 160) ||
+    `${brand.name} markalı ürünler.`;
+
   return {
-    title: brand.metaTitle || `${brand.name} | Yıldırım Store`,
-    description:
-      brand.metaDescription ||
-      brand.description?.slice(0, 160) ||
-      `${brand.name} markalı ürünler.`,
+    title,
+    description,
+    alternates: { canonical: `/marka/${brand.slug ?? slug}` },
+    openGraph: {
+      title: `${title} | Yıldırım Store`,
+      description,
+      url: `/marka/${brand.slug ?? slug}`,
+    },
   };
 }
 
