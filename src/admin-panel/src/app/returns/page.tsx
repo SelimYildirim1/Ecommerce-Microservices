@@ -29,7 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Check, RotateCcw, Wallet, X } from "lucide-react";
+import { Check, PackageCheck, RotateCcw, Wallet, X } from "lucide-react";
 import { useState } from "react";
 import toast from "react-hot-toast";
 
@@ -40,6 +40,9 @@ const money = (value: number) =>
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" });
+
+const totalUnits = (request: ReturnRequest) =>
+  request.items.reduce((sum, item) => sum + item.units, 0);
 
 const STATUS_STYLES: Record<ReturnStatus, string> = {
   Pending: "bg-amber-100 text-amber-700",
@@ -145,6 +148,7 @@ export default function ReturnsPage() {
                   <TableHead>Tutar</TableHead>
                   <TableHead>Tarih</TableHead>
                   <TableHead>Durum</TableHead>
+                  <TableHead>Stok</TableHead>
                   <TableHead className="text-right">İşlemler</TableHead>
                 </TableRow>
               </TableHeader>
@@ -185,6 +189,19 @@ export default function ReturnsPage() {
                         {request.statusName}
                       </span>
                     </TableCell>
+                    <TableCell className="whitespace-nowrap text-xs">
+                      {request.stockRestoredAt ? (
+                        <span
+                          className="inline-flex items-center gap-1 text-green-700"
+                          title={`Stoğa eklendi: ${formatDate(request.stockRestoredAt)}`}
+                        >
+                          <PackageCheck className="h-3.5 w-3.5" />
+                          {totalUnits(request)} adet eklendi
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-end gap-1">
                         {request.status === "Pending" && (
@@ -220,7 +237,7 @@ export default function ReturnsPage() {
                 ))}
                 {returns.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground">
                       İade talebi yok
                     </TableCell>
                   </TableRow>
@@ -248,6 +265,17 @@ export default function ReturnsPage() {
                   <p className="text-muted-foreground">{dialog.request.reasonDetail}</p>
                 )}
               </div>
+
+              {dialog.action === "approve" && !dialog.request.stockRestoredAt && (
+                <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                  <PackageCheck className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p>
+                    Onayladığınızda toplam{" "}
+                    <strong>{totalUnits(dialog.request)} adet</strong> ilgili ürün
+                    varyantlarının stoğuna otomatik eklenecek.
+                  </p>
+                </div>
+              )}
 
               {dialog.action !== "reject" && (
                 <div className="space-y-1.5">

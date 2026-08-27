@@ -40,6 +40,7 @@ const LABEL_MAP: Record<string, string> = {
   reports: "Raporlar",
   content: "İçerik",
   banners: "Bannerlar",
+  "mobile-banners": "Mobil Bannerlar",
   "audit-logs": "Denetim Kayıtları",
   settings: "Ayarlar",
   login: "Giriş",

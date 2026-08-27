@@ -8,16 +8,43 @@ export interface HeroSlide {
   id: string;
   imageUrl: string;
   linkUrl?: string | null;
+  title?: string | null;
+  subtitle?: string | null;
+  ctaText?: string | null;
 }
+
+export type HeroVariant = "desktop" | "mobile";
 
 const AUTOPLAY_MS = 5000;
 const SWIPE_PX = 48;
 
 /**
- * Ana sayfa hero: panelden gelen görseller. Yazı görselin içinde kabul edilir.
- * Birden fazla slaytta 5 sn otomatik kayar; parmak / fare ile kaydırılabilir.
+ * Görsel indirmesini görünen kırılıma sınırlar: gizli varyantta tarayıcı
+ * srcset'ten en küçük adayı seçer, böylece mobilde masaüstü görseli inmez.
  */
-export default function HeroSlider({ slides }: { slides: HeroSlide[] }) {
+const VARIANT_SIZES: Record<HeroVariant, string> = {
+  desktop: "(max-width: 767px) 1px, 100vw",
+  mobile: "(min-width: 768px) 1px, 100vw",
+};
+
+/** Mobil banner tasarım ölçüsü 390×523; yüksekliği genişlikten türetilir. */
+const VARIANT_FRAME: Record<HeroVariant, string> = {
+  desktop: "h-[62vh] min-h-[460px]",
+  mobile: "aspect-[390/523] max-h-[78vh]",
+};
+
+/**
+ * Ana sayfa hero: panelden gelen görseller. Başlık/slogan/CTA boşsa yazı
+ * görselin içinde kabul edilir. Birden fazla slaytta 5 sn otomatik kayar;
+ * parmak / fare ile kaydırılabilir.
+ */
+export default function HeroSlider({
+  slides,
+  variant = "desktop",
+}: {
+  slides: HeroSlide[];
+  variant?: HeroVariant;
+}) {
   const [index, setIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -153,10 +180,14 @@ export default function HeroSlider({ slides }: { slides: HeroSlide[] }) {
     transform: `translateX(calc(${-index * 100}% + ${dragX}px))`,
   };
 
+  const hasOverlay = Boolean(
+    active.title?.trim() || active.subtitle?.trim() || active.ctaText?.trim(),
+  );
+
   return (
     <section
       ref={wrapRef}
-      className="relative h-[62vh] min-h-[460px] w-full overflow-hidden overscroll-x-contain bg-cream touch-pan-y"
+      className={`relative w-full max-w-full overflow-hidden overscroll-x-contain bg-cream touch-pan-y ${VARIANT_FRAME[variant]}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -175,12 +206,30 @@ export default function HeroSlider({ slides }: { slides: HeroSlide[] }) {
               fill
               priority={i === 0}
               draggable={false}
-              sizes="100vw"
+              sizes={VARIANT_SIZES[variant]}
               className="pointer-events-none select-none object-cover object-center"
             />
           </div>
         ))}
       </div>
+
+      {hasOverlay && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col items-start gap-2 bg-gradient-to-t from-black/65 via-black/25 to-transparent px-5 pb-16 pt-16 text-white">
+          {active.title?.trim() && (
+            <h2 className="font-display text-2xl leading-tight font-semibold text-balance">
+              {active.title}
+            </h2>
+          )}
+          {active.subtitle?.trim() && (
+            <p className="text-sm leading-snug text-white/85">{active.subtitle}</p>
+          )}
+          {active.ctaText?.trim() && (
+            <span className="mt-1 inline-flex items-center rounded-full bg-white px-5 py-2 text-sm font-medium text-gray-900">
+              {active.ctaText}
+            </span>
+          )}
+        </div>
+      )}
 
       {href &&
         (/^https?:\/\//i.test(href) ? (

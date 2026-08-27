@@ -6,12 +6,19 @@
 
 import { serverFetchJson } from "@/lib/server-fetch";
 
+/** Web / masaüstü ana sayfa slider yerleşimi. */
+export const BANNER_PLACEMENT_DESKTOP = "home-slider";
+
+/** Mobil ana sayfa slider yerleşimi — web bannerlarından bağımsız yönetilir. */
+export const BANNER_PLACEMENT_MOBILE = "home-slider-mobile";
+
 export interface Banner {
   id: string;
   title: string;
   subtitle?: string | null;
   imageUrl: string;
   linkUrl?: string | null;
+  ctaText?: string | null;
   placement: string;
   sortOrder: number;
   categoryId?: string | null;

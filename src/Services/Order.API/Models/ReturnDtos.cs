@@ -47,6 +47,7 @@ public record ReturnRequestDto(
     DateTime RequestedAt,
     DateTime? ResolvedAt,
     DateTime? RefundedAt,
+    DateTime? StockRestoredAt,
     List<ReturnItemDto> Items);
 
 public static class ReturnLabels
@@ -104,6 +105,7 @@ public static class ReturnLabels
         r.RequestedAt,
         r.ResolvedAt,
         r.RefundedAt,
+        r.StockRestoredAt,
         r.Items.Select(i => new ReturnItemDto(
             i.Id,
             i.OrderItemId,

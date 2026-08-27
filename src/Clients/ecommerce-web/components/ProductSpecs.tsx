@@ -17,17 +17,19 @@ export default function ProductSpecs({ product }: { product: Product }) {
         Teknik Özellikler
       </h2>
       <div className="overflow-hidden rounded-2xl border border-border">
-        <table className="w-full text-sm">
+        <table className="w-full table-fixed text-sm">
           <tbody>
             {rows.map((row, i) => (
               <tr
                 key={row.key}
                 className={i % 2 === 0 ? "bg-cream/60" : "bg-white"}
               >
-                <th className="w-1/3 px-4 py-3 text-left font-medium text-gray-700">
+                <th className="w-2/5 break-words px-3 py-3 text-left font-medium text-gray-700 sm:w-1/3 sm:px-4">
                   {row.label}
                 </th>
-                <td className="px-4 py-3 text-gray-600">{row.value}</td>
+                <td className="break-words px-3 py-3 text-gray-600 sm:px-4">
+                  {row.value}
+                </td>
               </tr>
             ))}
           </tbody>

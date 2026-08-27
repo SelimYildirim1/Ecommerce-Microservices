@@ -47,34 +47,42 @@ export default function InstallmentTable({
         Taksit Seçenekleri
       </h2>
       <div className="overflow-hidden rounded-2xl border border-border">
-        <table className="w-full text-sm">
-          <thead className="bg-cream/80 text-left text-xs uppercase tracking-wide text-gray-500">
-            <tr>
-              <th className="px-4 py-2.5 font-medium">Taksit</th>
-              <th className="px-4 py-2.5 font-medium">Aylık</th>
-              <th className="px-4 py-2.5 font-medium">Toplam</th>
-            </tr>
-          </thead>
-          <tbody>
-            {months.map((m, i) => {
-              const rate = rates[m] ?? 0;
-              const total = price * (1 + rate);
-              const monthly = total / m;
-              return (
-                <tr key={m} className={i % 2 === 0 ? "bg-white" : "bg-cream/40"}>
-                  <td className="px-4 py-2.5 font-medium">{m} ay</td>
-                  <td className="px-4 py-2.5 text-gray-600">{formatPrice(monthly)}</td>
-                  <td className="px-4 py-2.5 text-gray-600">
-                    {formatPrice(total)}
-                    {rate === 0 && (
-                      <span className="ml-2 text-xs text-emerald-600">vade farksız</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-full text-sm">
+            <thead className="bg-cream/80 text-left text-xs uppercase tracking-wide text-gray-500">
+              <tr>
+                <th className="px-3 py-2.5 font-medium sm:px-4">Taksit</th>
+                <th className="px-3 py-2.5 font-medium sm:px-4">Aylık</th>
+                <th className="px-3 py-2.5 font-medium sm:px-4">Toplam</th>
+              </tr>
+            </thead>
+            <tbody>
+              {months.map((m, i) => {
+                const rate = rates[m] ?? 0;
+                const total = price * (1 + rate);
+                const monthly = total / m;
+                return (
+                  <tr key={m} className={i % 2 === 0 ? "bg-white" : "bg-cream/40"}>
+                    <td className="whitespace-nowrap px-3 py-2.5 font-medium sm:px-4">
+                      {m} ay
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-gray-600 sm:px-4">
+                      {formatPrice(monthly)}
+                    </td>
+                    <td className="px-3 py-2.5 text-gray-600 sm:px-4">
+                      <span className="whitespace-nowrap">{formatPrice(total)}</span>
+                      {rate === 0 && (
+                        <span className="ml-2 whitespace-nowrap text-xs text-emerald-600">
+                          vade farksız
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
   );

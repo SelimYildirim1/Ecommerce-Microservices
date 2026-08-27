@@ -18,7 +18,7 @@ export function ProductCardSkeleton() {
         <ShimmerBar className="h-3 w-2/3 rounded" />
         <div className="mt-auto flex items-center justify-between pt-1">
           <ShimmerBar className="h-5 w-20 rounded" />
-          <ShimmerBar className="h-10 w-10 rounded-full" />
+          <ShimmerBar className="h-11 w-11 rounded-full sm:h-10 sm:w-10" />
         </div>
       </div>
     </div>

@@ -2,6 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  BANNER_PLACEMENT_DESKTOP,
+  BANNER_PLACEMENT_MOBILE,
   createBanner,
   createStaticPage,
   deleteBanner,
@@ -114,7 +116,12 @@ function BannersTab() {
     queryKey: ["banners"],
     queryFn: () => getBanners(),
   });
-  const banners = allBanners.filter((banner) => banner.placement !== "home-slider");
+  // Ana sayfa slider'ı /banners, mobil slider /mobile-banners sayfasından yönetilir.
+  const banners = allBanners.filter(
+    (banner) =>
+      banner.placement !== BANNER_PLACEMENT_DESKTOP &&
+      banner.placement !== BANNER_PLACEMENT_MOBILE,
+  );
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["banners"] });
 

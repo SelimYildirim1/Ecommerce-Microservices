@@ -29,7 +29,13 @@ export default function FavoritesList({ limit }: { limit?: number }) {
   }, [authLoading, user, router]);
 
   const load = useCallback(async () => {
-    if (!user) return;
+    // Kullanici yoksa istek atilmaz; loading acik kalirsa shimmer takilir.
+    if (!user) {
+      reqId.current += 1;
+      setItems([]);
+      setLoading(authLoading);
+      return;
+    }
 
     const id = ++reqId.current;
     setLoading(true);
@@ -44,7 +50,7 @@ export default function FavoritesList({ limit }: { limit?: number }) {
     } finally {
       if (id === reqId.current) setLoading(false);
     }
-  }, [user]);
+  }, [user, authLoading]);
 
   useEffect(() => {
     void load();

@@ -32,6 +32,10 @@ namespace Catalog.API.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("CtaText")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<DateTime?>("EndsAt")
                         .HasColumnType("timestamp with time zone");
 

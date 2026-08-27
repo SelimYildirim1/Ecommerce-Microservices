@@ -185,53 +185,62 @@ export default async function ProductDetailPage({
       />
 
       <div className="border-b border-gray-100">
-        <div className="mx-auto max-w-[1600px] px-6 py-3 md:px-12">
-          <nav className="flex items-center gap-1.5 text-sm text-gray-500">
-            <Link href="/" className="transition-colors hover:text-gray-900">
+        <div className="mx-auto max-w-[1600px] px-4 py-3 sm:px-6 md:px-12">
+          {/* Mobilde ara kirintilar gizlenir; aksi halde satir viewport'u asar. */}
+          <nav className="flex min-w-0 items-center gap-1.5 text-sm text-gray-500">
+            <Link
+              href="/"
+              className="shrink-0 transition-colors hover:text-gray-900"
+            >
               Anasayfa
             </Link>
-            <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-            <Link href="/products" className="transition-colors hover:text-gray-900">
+            <ChevronRight className="hidden h-3.5 w-3.5 shrink-0 sm:block" />
+            <Link
+              href="/products"
+              className="hidden shrink-0 transition-colors hover:text-gray-900 sm:block"
+            >
               Tüm Ürünler
             </Link>
             {product.categoryId && product.categoryName && (
               <>
-                <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                <ChevronRight className="hidden h-3.5 w-3.5 shrink-0 lg:block" />
                 <Link
                   href={`/products?category=${product.categoryId}`}
-                  className="transition-colors hover:text-gray-900"
+                  className="hidden max-w-[220px] shrink-0 truncate transition-colors hover:text-gray-900 lg:block"
                 >
                   {product.categoryName}
                 </Link>
               </>
             )}
             <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-            <span className="max-w-[200px] truncate font-medium text-gray-900">
+            <span className="min-w-0 flex-1 truncate font-medium text-gray-900 sm:max-w-[280px] sm:flex-none">
               {product.name}
             </span>
           </nav>
         </div>
       </div>
 
-      <main className="mx-auto max-w-[1600px] px-6 py-10 md:px-12">
+      <main className="mx-auto max-w-[1600px] px-4 py-10 pb-32 sm:px-6 md:px-12 md:pb-10">
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-2 lg:gap-16">
-          <ProductGallery
-            images={product.images ?? []}
-            fallbackUrl={getImageUrl(product)}
-            alt={product.name}
-          />
+          <div className="min-w-0">
+            <ProductGallery
+              images={product.images ?? []}
+              fallbackUrl={getImageUrl(product)}
+              alt={product.name}
+            />
+          </div>
 
-          <div className="flex flex-col">
+          <div className="flex min-w-0 flex-col">
             {product.brandName && (
               <Link
                 href={brandSlug ? `/marka/${brandSlug}` : "/products"}
-                className="w-fit text-sm font-semibold uppercase tracking-wide text-gray-400 transition-colors hover:text-gray-900"
+                className="w-fit max-w-full truncate text-sm font-semibold uppercase tracking-wide text-gray-400 transition-colors hover:text-gray-900"
               >
                 {product.brandName}
               </Link>
             )}
 
-            <h1 className="font-display mt-1 text-3xl font-bold leading-tight lg:text-4xl">
+            <h1 className="font-display mt-1 break-words text-2xl font-bold leading-tight sm:text-3xl lg:text-4xl">
               {product.name}
             </h1>
 

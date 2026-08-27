@@ -23,7 +23,13 @@ public class Banner : BaseEntity
     public string ImageUrl { get; set; } = default!;
     public string? LinkUrl { get; set; }
 
-    /// <summary>home-slider, home-strip, category-top, mega-menu gibi yerlesim adi.</summary>
+    /// <summary>CTA butonunda yazacak metin. Bos ise buton gosterilmez.</summary>
+    public string? CtaText { get; set; }
+
+    /// <summary>
+    /// home-slider, home-slider-mobile, home-strip, category-top, mega-menu gibi
+    /// yerlesim adi. Mobil bannerlar web bannerlarindan bagimsiz yonetilir.
+    /// </summary>
     public string Placement { get; set; } = "home-slider";
 
     /// <summary>Mega menu tanitim karti icin bagli kategori (opsiyonel).</summary>

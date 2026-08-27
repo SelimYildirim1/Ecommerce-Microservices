@@ -16,7 +16,8 @@ public record SaveBannerRequest(
     bool IsActive,
     DateTime? StartsAt,
     DateTime? EndsAt,
-    Guid? CategoryId = null);
+    Guid? CategoryId = null,
+    string? CtaText = null);
 
 public record SaveStaticPageRequest(
     string Slug,
@@ -166,6 +167,7 @@ public class AdminCmsController : ControllerBase
         banner.Subtitle = r.Subtitle?.Trim();
         banner.ImageUrl = r.ImageUrl.Trim();
         banner.LinkUrl = r.LinkUrl?.Trim();
+        banner.CtaText = string.IsNullOrWhiteSpace(r.CtaText) ? null : r.CtaText.Trim();
         banner.Placement = string.IsNullOrWhiteSpace(r.Placement) ? "home-slider" : r.Placement.Trim();
         banner.SortOrder = r.SortOrder;
         banner.IsActive = r.IsActive;

@@ -12,6 +12,7 @@ import AppToaster from "@/components/AppToaster";
 import MobileBottomNav from "@/components/MobileBottomNav";
 import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 import AnnouncementBar from "@/components/AnnouncementBar";
+import ScrollToTop from "@/components/ScrollToTop";
 import { AuthProvider } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
 import { CartDrawerProvider } from "@/context/CartDrawerContext";
@@ -142,6 +143,7 @@ export default async function RootLayout({
               <CartDrawerProvider>
                 <FavoritesProvider>
                   <CurrencyProvider initialMeta={currencyMeta} uiLocale={locale}>
+                    <ScrollToTop />
                     <a
                       href="#main-content"
                       className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-foreground focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white focus:outline-none"

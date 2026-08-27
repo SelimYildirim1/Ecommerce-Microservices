@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  BANNER_PLACEMENT_DESKTOP,
   createBanner,
   deleteBanner,
   getBanners,
@@ -24,11 +25,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import Image from "next/image";
+import Link from "next/link";
 import { Loader2, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import toast from "react-hot-toast";
 
-const HOME_PLACEMENT = "home-slider";
+const HOME_PLACEMENT = BANNER_PLACEMENT_DESKTOP;
 
 type Draft = BannerPayload & { id?: string };
 
@@ -129,8 +131,12 @@ export default function BannersPage() {
       <div>
         <h1 className="text-2xl font-bold">Bannerlar</h1>
         <p className="text-sm text-muted-foreground">
-          Ana sayfa kayan görselleri. Yazı görselin içinde olsun; buradan yalnızca görsel
-          ve tıklanınca gidilecek adresi yönetin.
+          Web / masaüstü ana sayfa kayan görselleri. Yazı görselin içinde olsun; buradan
+          yalnızca görsel ve tıklanınca gidilecek adresi yönetin. Mobil için{" "}
+          <Link href="/mobile-banners" className="underline underline-offset-2">
+            Mobil Bannerlar
+          </Link>{" "}
+          sayfasını kullanın.
         </p>
       </div>
 

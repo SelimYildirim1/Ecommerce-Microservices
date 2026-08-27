@@ -54,6 +54,12 @@ public class ReturnRequest : BaseEntity
     public DateTime? ResolvedAt { get; set; }
     public DateTime? RefundedAt { get; set; }
 
+    /// <summary>
+    /// Stok iadesi bir kez yapilir. Dolu ise Catalog'a tekrar olay yayimlanmaz;
+    /// ayni talep tekrar onaylanmaya calisildiginda stok ikinci kez artmaz.
+    /// </summary>
+    public DateTime? StockRestoredAt { get; set; }
+
     public List<ReturnRequestItem> Items { get; set; } = new();
 }
 

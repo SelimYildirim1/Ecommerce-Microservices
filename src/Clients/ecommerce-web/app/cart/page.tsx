@@ -117,7 +117,7 @@ export default async function CartPage() {
     <div className="bg-white text-gray-900">
       <Header />
 
-      <main className="mx-auto max-w-[1600px] px-6 py-8 md:px-12">
+      <main className="mx-auto max-w-[1600px] px-4 py-8 pb-28 sm:px-6 md:px-12 md:pb-8">
         <nav className="mb-4 flex items-center gap-1.5 text-sm text-gray-500">
           <Link href="/" className="transition-colors hover:text-gray-900">
             Anasayfa

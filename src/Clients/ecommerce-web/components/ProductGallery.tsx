@@ -120,7 +120,7 @@ export default function ProductGallery({ images, fallbackUrl, alt }: Props) {
       </div>
 
       {items.length > 1 && (
-        <div className="flex gap-3 overflow-x-auto pb-1">
+        <div className="flex gap-3 overflow-x-auto overscroll-x-contain pb-1">
           {items.map((item, index) => (
             <button
               key={`${item.url}-${index}`}

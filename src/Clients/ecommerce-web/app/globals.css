@@ -66,6 +66,39 @@ body {
   font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
+/*
+  Mobil yatay kayma icin temel kurallar. Tasmayi `overflow-x: hidden` ile
+  gizlemek yerine ogeleri kendi kapsayicisina sigdirir. `@layer base` icinde
+  durur; boylece Tailwind yardimci siniflari (h-auto, w-40 vb.) ustun kalir.
+*/
+@layer base {
+  html {
+    /* iOS Safari yatay cevirmede yaziyi buyutup satiri tasirir */
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Gorsel ve gomulu icerik kapsayicisini asmasin */
+  img,
+  svg,
+  video,
+  canvas,
+  iframe,
+  embed,
+  object {
+    max-width: 100%;
+  }
+
+  img,
+  video {
+    height: auto;
+  }
+
+  /* Bosluksuz uzun metin (URL, SKU, e-posta) satiri tasirmasin */
+  body {
+    overflow-wrap: break-word;
+  }
+}
+
 /* Bolum basliklarinda kullanilan serif aile */
 .font-display {
   font-family: var(--font-playfair), ui-serif, Georgia, serif;

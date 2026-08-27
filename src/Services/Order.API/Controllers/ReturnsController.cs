@@ -185,7 +185,10 @@ public class ReturnsController : ControllerBase
             ReturnLabels.ToDto(returnRequest));
     }
 
-    /// <summary>Admin: talebi onaylar. Iade tutari revize edilebilir.</summary>
+    /// <summary>
+    /// Admin: talebi onaylar. Iade tutari revize edilebilir. Onay aninda iade edilen
+    /// adetler stoga geri eklenir; StockRestoredAt sayesinde ikinci kez eklenmez.
+    /// </summary>
     [HttpPut("{id:guid}/approve")]
     [Authorize(Roles = "Admin")]
     public async Task<ActionResult<ReturnRequestDto>> Approve(
@@ -202,8 +205,56 @@ public class ReturnsController : ControllerBase
         if (request?.RefundAmount is > 0)
             returnRequest.RefundAmount = request.RefundAmount.Value;
 
-        await _context.SaveChangesAsync();
+        await RestoreStockAsync(returnRequest, "İade onayı");
+
         return Ok(ReturnLabels.ToDto(returnRequest));
+    }
+
+    /// <summary>
+    /// Talep kalemlerinin adetlerini stoga geri ekletir. Durum degisikligi ve
+    /// StockRestoredAt isareti tek transaction'da yazilir; olay yayimi basarisiz
+    /// olursa transaction geri alinir ve islem yeniden denenebilir kalir.
+    /// </summary>
+    private async Task RestoreStockAsync(ReturnRequest returnRequest, string reasonPrefix)
+    {
+        var lines = returnRequest.Items
+            .Where(i => i.Units > 0)
+            .GroupBy(i => i.ProductId)
+            .Select(g => new OrderItemMessage
+            {
+                ProductId = g.Key.ToString(),
+                ProductName = g.First().ProductName,
+                Price = g.First().UnitPrice,
+                Quantity = g.Sum(i => i.Units)
+            })
+            .ToList();
+
+        if (returnRequest.StockRestoredAt is not null || lines.Count == 0)
+        {
+            await _context.SaveChangesAsync();
+            return;
+        }
+
+        returnRequest.StockRestoredAt = DateTime.UtcNow;
+
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+
+        await _context.SaveChangesAsync();
+
+        await _publishEndpoint.Publish(new OrderStockReleaseEvent
+        {
+            OrderId = returnRequest.OrderId,
+            Reason = $"{reasonPrefix}: {returnRequest.RequestNumber}",
+            ReleaseType = "Return",
+            ReferenceKey = returnRequest.Id.ToString(),
+            OrderItems = lines
+        });
+
+        await transaction.CommitAsync();
+
+        _logger.LogInformation(
+            "İade stok iadesi yayımlandı. {RequestNumber}, {LineCount} kalem, toplam {Units} adet",
+            returnRequest.RequestNumber, lines.Count, lines.Sum(l => l.Quantity));
     }
 
     [HttpPut("{id:guid}/reject")]
@@ -254,26 +305,12 @@ public class ReturnsController : ControllerBase
 
         order?.SetStatus("Returned");
 
-        await _context.SaveChangesAsync();
+        // Stok normalde onay aninda geri eklenir. Onay oncesinde olusmus eski
+        // talepler icin burada bir kez daha denenir; isaret varsa yalnizca kaydeder.
+        await RestoreStockAsync(returnRequest, "İade geri ödemesi");
 
         if (order is not null)
-        {
             await OrderStatusRealtime.NotifyAsync(_hubContext, order, _logger);
-            await _publishEndpoint.Publish(new OrderStockReleaseEvent
-            {
-                OrderId = order.Id,
-                Reason = $"İade iadesi: {returnRequest.RequestNumber}",
-                ReleaseType = "Refund",
-                OrderItems = order.OrderItems.Select(i => new OrderItemMessage
-                {
-                    ProductId = i.ProductId.ToString(),
-                    ProductName = i.ProductName,
-                    PictureUrl = i.PictureUrl,
-                    Price = i.UnitPrice,
-                    Quantity = i.Units
-                }).ToList()
-            });
-        }
 
         _logger.LogInformation(
             "İade tamamlandı. {RequestNumber}, tutar {Amount}",

@@ -250,6 +250,7 @@ public class CatalogDbContext : DbContext
             entity.Property(b => b.Subtitle).HasMaxLength(300);
             entity.Property(b => b.ImageUrl).IsRequired().HasMaxLength(500);
             entity.Property(b => b.LinkUrl).HasMaxLength(500);
+            entity.Property(b => b.CtaText).HasMaxLength(100);
             entity.Property(b => b.Placement).IsRequired().HasMaxLength(50);
 
             entity.HasOne(b => b.Category)

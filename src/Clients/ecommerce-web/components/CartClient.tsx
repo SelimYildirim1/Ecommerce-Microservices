@@ -397,17 +397,20 @@ export default function CartClient({
               const maxStock = stockMap[item.productId];
 
               return (
-                <div key={item.productId} className="flex items-center gap-4 p-5">
+                <div
+                  key={item.productId}
+                  className="flex items-start gap-3 p-4 sm:items-center sm:gap-4 sm:p-5"
+                >
                   <Link
                     href={`/products/${item.productId}`}
-                    className="relative flex h-24 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted transition hover:opacity-80"
+                    className="relative flex h-20 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted transition hover:opacity-80 sm:h-24 sm:w-20"
                   >
                     {image ? (
                       <Image
                         src={resolveMediaUrl(image)}
                         alt={item.productName}
                         fill
-                        sizes="80px"
+                        sizes="(max-width: 640px) 64px, 80px"
                         className="object-cover"
                       />
                     ) : (
@@ -415,22 +418,22 @@ export default function CartClient({
                     )}
                   </Link>
 
-                  <div className="flex-1 min-w-0">
+                  <div className="min-w-0 flex-1">
                     <Link
                       href={`/products/${item.productId}`}
-                      className="text-sm font-medium hover:underline line-clamp-2"
+                      className="line-clamp-2 break-words text-sm font-medium hover:underline"
                     >
                       {item.productName}
                     </Link>
-                    <p className="text-xs text-muted-foreground mt-1">
+                    <p className="mt-1 text-xs text-muted-foreground">
                       Birim: {formatPrice(item.price)}
                       {typeof maxStock === "number" && (
                         <span className="ml-2">· Stok: {maxStock}</span>
                       )}
                     </p>
 
-                    <div className="flex items-center gap-2 mt-3">
-                      <div className="flex items-center border border-border rounded-lg overflow-hidden">
+                    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+                      <div className="flex shrink-0 items-center overflow-hidden rounded-lg border border-border">
                         <button
                           onClick={() => changeQuantity(item.productId, -1)}
                           disabled={loading}
@@ -456,31 +459,31 @@ export default function CartClient({
                       <button
                         onClick={() => removeItem(item.productId)}
                         disabled={loading}
-                        className="text-xs text-red-500 hover:text-red-600 font-medium hover:underline disabled:opacity-50 transition ml-2"
+                        className="whitespace-nowrap text-xs font-medium text-red-500 transition hover:text-red-600 hover:underline disabled:opacity-50"
                       >
                         Kaldır
                       </button>
                       <button
                         onClick={() => void saveForLater(item.productId)}
                         disabled={loading}
-                        className="text-xs text-muted-foreground hover:text-foreground font-medium hover:underline disabled:opacity-50 transition ml-2 inline-flex items-center gap-1"
+                        className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium text-muted-foreground transition hover:text-foreground hover:underline disabled:opacity-50"
                       >
-                        <Bookmark className="w-3 h-3" /> Sonra al
+                        <Bookmark className="h-3 w-3 shrink-0" /> Sonra al
                       </button>
                       {user && (
                         <button
                           onClick={() => void moveToFavorites(item.productId)}
                           disabled={loading}
-                          className="text-xs text-muted-foreground hover:text-foreground font-medium hover:underline disabled:opacity-50 transition ml-2 inline-flex items-center gap-1"
+                          className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium text-muted-foreground transition hover:text-foreground hover:underline disabled:opacity-50"
                         >
-                          <Heart className="w-3 h-3" /> Favorilere taşı
+                          <Heart className="h-3 w-3 shrink-0" /> Favorilere taşı
                         </button>
                       )}
                     </div>
                   </div>
 
-                  <div className="text-right shrink-0">
-                    <p className="text-sm font-bold">
+                  <div className="shrink-0 text-right">
+                    <p className="whitespace-nowrap text-sm font-bold">
                       {formatPrice(item.price * item.quantity)}
                     </p>
                   </div>
@@ -501,7 +504,10 @@ export default function CartClient({
               {basket.savedItems.map((item) => {
                 const image = item.pictureUrl || images[item.productId];
                 return (
-                  <div key={item.productId} className="flex items-center gap-4 p-5">
+                  <div
+                    key={item.productId}
+                    className="flex items-start gap-3 p-4 sm:items-center sm:gap-4 sm:p-5"
+                  >
                     <Link
                       href={`/products/${item.productId}`}
                       className="relative flex h-20 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted"
@@ -518,8 +524,8 @@ export default function CartClient({
                         <ImageOff className="h-6 w-6 text-muted-foreground/40" strokeWidth={1} />
                       )}
                     </Link>
-                    <div className="flex-1 min-w-0">
-                      <Link href={`/products/${item.productId}`} className="text-sm font-medium hover:underline line-clamp-2">
+                    <div className="min-w-0 flex-1">
+                      <Link href={`/products/${item.productId}`} className="line-clamp-2 break-words text-sm font-medium hover:underline">
                         {item.productName}
                       </Link>
                       <p className="text-xs text-muted-foreground mt-1">{formatPrice(item.price)}</p>

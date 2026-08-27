@@ -28,10 +28,10 @@ export default function RecentlyViewed({ excludeId }: Props) {
   if (items.length === 0) return null;
 
   return (
-    <section className="mx-auto max-w-[1600px] px-6 py-12 md:px-12">
+    <section className="mx-auto max-w-[1600px] px-4 py-12 sm:px-6 md:px-12">
       <SectionHeader title="Son Görüntülenenler" />
 
-      <div className="-mx-1 flex gap-4 overflow-x-auto pb-2 pt-1">
+      <div className="flex gap-4 overflow-x-auto overscroll-x-contain px-1 pb-2 pt-1">
         {items.map((item) => {
           const image = item.image ? resolveMediaUrl(item.image) : null;
 

@@ -1555,6 +1555,8 @@ export interface ReturnRequest {
   requestedAt: string;
   resolvedAt?: string;
   refundedAt?: string;
+  /** Onay anında stoğun geri eklendiği zaman. Doluysa stok tekrar artırılmaz. */
+  stockRestoredAt?: string | null;
   items: ReturnItem[];
 }
 
@@ -2020,12 +2022,20 @@ export const SETTING_GROUP_LABELS: Record<string, string> = {
 
 // --- İçerik yönetimi ---
 
+/** Web bannerlarının yerleşim adı. */
+export const BANNER_PLACEMENT_DESKTOP = "home-slider";
+
+/** Mobil bannerların yerleşim adı — web bannerlarından bağımsız yönetilir. */
+export const BANNER_PLACEMENT_MOBILE = "home-slider-mobile";
+
 export interface Banner {
   id: string;
   title: string;
   subtitle?: string;
   imageUrl: string;
   linkUrl?: string;
+  /** CTA butonunda yazacak metin. Boşsa buton gösterilmez. */
+  ctaText?: string | null;
   placement: string;
   sortOrder: number;
   isActive: boolean;
@@ -2040,6 +2050,7 @@ export interface BannerPayload {
   subtitle?: string | null;
   imageUrl: string;
   linkUrl?: string | null;
+  ctaText?: string | null;
   placement?: string | null;
   sortOrder: number;
   isActive: boolean;
