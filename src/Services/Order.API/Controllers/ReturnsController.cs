@@ -214,6 +214,12 @@ public class ReturnsController : ControllerBase
     /// Talep kalemlerinin adetlerini stoga geri ekletir. Durum degisikligi ve
     /// StockRestoredAt isareti tek transaction'da yazilir; olay yayimi basarisiz
     /// olursa transaction geri alinir ve islem yeniden denenebilir kalir.
+    ///
+    /// Baglanti yeniden deneme stratejisi (EnableRetryOnFailure) elle acilan
+    /// transaction'a izin vermedigi icin transaction, stratejinin yeniden
+    /// deneyebilecegi tek blok halinde calistirilir. Yeniden denemede olay
+    /// ikinci kez yayimlanabilir; Catalog tarafi ayni ReferenceKey'i tekrar
+    /// islemedigi icin stok yine bir kez artar.
     /// </summary>
     private async Task RestoreStockAsync(ReturnRequest returnRequest, string reasonPrefix)
     {
@@ -237,20 +243,25 @@ public class ReturnsController : ControllerBase
 
         returnRequest.StockRestoredAt = DateTime.UtcNow;
 
-        await using var transaction = await _context.Database.BeginTransactionAsync();
+        var strategy = _context.Database.CreateExecutionStrategy();
 
-        await _context.SaveChangesAsync();
-
-        await _publishEndpoint.Publish(new OrderStockReleaseEvent
+        await strategy.ExecuteAsync(async () =>
         {
-            OrderId = returnRequest.OrderId,
-            Reason = $"{reasonPrefix}: {returnRequest.RequestNumber}",
-            ReleaseType = "Return",
-            ReferenceKey = returnRequest.Id.ToString(),
-            OrderItems = lines
-        });
+            await using var transaction = await _context.Database.BeginTransactionAsync();
 
-        await transaction.CommitAsync();
+            await _context.SaveChangesAsync();
+
+            await _publishEndpoint.Publish(new OrderStockReleaseEvent
+            {
+                OrderId = returnRequest.OrderId,
+                Reason = $"{reasonPrefix}: {returnRequest.RequestNumber}",
+                ReleaseType = "Return",
+                ReferenceKey = returnRequest.Id.ToString(),
+                OrderItems = lines
+            });
+
+            await transaction.CommitAsync();
+        });
 
         _logger.LogInformation(
             "İade stok iadesi yayımlandı. {RequestNumber}, {LineCount} kalem, toplam {Units} adet",
