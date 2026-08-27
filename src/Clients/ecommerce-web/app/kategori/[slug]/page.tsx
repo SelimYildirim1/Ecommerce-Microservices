@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import Header from "@/components/Header";
@@ -29,14 +29,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const description =
     category.metaDescription ||
     `${category.name} kategorisindeki ürünler — ${category.productCount} ürün.`;
+  const canonical = `/kategori/${category.slug ?? slug}`;
   return {
     title,
     description,
-    alternates: { canonical: `/kategori/${slug}` },
+    alternates: { canonical },
     openGraph: {
       title: `${title} | Yıldırım Store`,
       description,
-      url: `/kategori/${slug}`,
+      url: canonical,
     },
   };
 }
@@ -45,6 +46,12 @@ export default async function CategoryPage({ params }: Props) {
   const { slug } = await params;
   const category = await getCategoryBySlug(slug);
   if (!category) notFound();
+
+  // Slug duzeltmesi oncesindeki adres istendiyse guncel adrese tasi; tek
+  // kanonik URL kalir ve eski baglantilar kirilmaz.
+  if (category.slug && category.slug !== slug) {
+    permanentRedirect(`/kategori/${category.slug}`);
+  }
 
   const [allCategories, products] = await Promise.all([
     getCategories(),

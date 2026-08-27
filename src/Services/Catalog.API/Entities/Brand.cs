@@ -10,6 +10,12 @@ public class Brand : BaseEntity
 
     /// <summary>URL dostu ad. Boş bırakılırsa Name'den üretilir.</summary>
     public string? Slug { get; set; }
+
+    /// <summary>
+    /// Slug degistiginde onceki deger burada saklanir. Eski baglantilar
+    /// by-slug ucundan yine bulunur ve vitrin kalici yonlendirme dondurur.
+    /// </summary>
+    public string? LegacySlug { get; set; }
     public string? Description { get; set; }
     public string? MetaTitle { get; set; }
     public string? MetaDescription { get; set; }

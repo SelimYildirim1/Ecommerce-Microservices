@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import Header from "@/components/Header";
@@ -35,6 +35,11 @@ export default async function BrandPage({ params, searchParams }: Props) {
 
   const brand = await getBrandBySlug(slug);
   if (!brand) notFound();
+
+  // Slug duzeltmesi oncesindeki adres istendiyse guncel adrese tasi.
+  if (brand.slug && brand.slug !== slug) {
+    permanentRedirect(`/marka/${brand.slug}`);
+  }
 
   const products = await serverFetchJson<PagedResult<Product>>(
     `/catalog/products/search?brandId=${brand.id}&page=${page}&pageSize=${PAGE_SIZE}`,

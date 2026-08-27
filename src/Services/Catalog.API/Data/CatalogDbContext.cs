@@ -57,6 +57,7 @@ public class CatalogDbContext : DbContext
                   .OnDelete(DeleteBehavior.Restrict);
 
             entity.Property(c => c.Slug).HasMaxLength(200);
+            entity.Property(c => c.LegacySlug).HasMaxLength(200);
             entity.Property(c => c.ImageUrl).HasMaxLength(500);
             entity.Property(c => c.MetaTitle).HasMaxLength(200);
             entity.Property(c => c.MetaDescription).HasMaxLength(500);
@@ -64,6 +65,7 @@ public class CatalogDbContext : DbContext
             entity.HasIndex(c => c.ParentId);
             entity.HasIndex(c => c.Name);
             entity.HasIndex(c => c.Slug);
+            entity.HasIndex(c => c.LegacySlug);
         });
 
         // ---- ProductAttribute ----
@@ -94,10 +96,12 @@ public class CatalogDbContext : DbContext
         {
             entity.HasIndex(b => b.Name).IsUnique();
             entity.Property(b => b.Slug).HasMaxLength(200);
+            entity.Property(b => b.LegacySlug).HasMaxLength(200);
             entity.Property(b => b.Description).HasMaxLength(2000);
             entity.Property(b => b.MetaTitle).HasMaxLength(200);
             entity.Property(b => b.MetaDescription).HasMaxLength(500);
             entity.HasIndex(b => b.Slug);
+            entity.HasIndex(b => b.LegacySlug);
         });
 
         // ---- Product ----

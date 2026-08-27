@@ -45,6 +45,11 @@ public class BrandsController : ControllerBase
             .AsNoTracking()
             .FirstOrDefaultAsync(b => b.Slug != null && b.Slug.ToLower() == normalized);
 
+        // Slug duzeltmesinden onceki adresler LegacySlug'ta durur.
+        brand ??= await _context.Brands
+            .AsNoTracking()
+            .FirstOrDefaultAsync(b => b.LegacySlug != null && b.LegacySlug.ToLower() == normalized);
+
         if (brand is null)
         {
             var all = await _context.Brands.AsNoTracking().ToListAsync();

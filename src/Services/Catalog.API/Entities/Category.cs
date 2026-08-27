@@ -14,6 +14,12 @@ public class Category : BaseEntity
     /// <summary>SEO dostu URL parçası. Boşsa Id kullanılır.</summary>
     public string? Slug { get; set; }
 
+    /// <summary>
+    /// Slug degistiginde onceki deger burada saklanir. Eski baglantilar
+    /// by-slug ucundan yine bulunur ve vitrin kalici yonlendirme dondurur.
+    /// </summary>
+    public string? LegacySlug { get; set; }
+
     /// <summary>Vitrindeki kategori görseli. Boşsa kategori görsel şeridinde gösterilmez.</summary>
     public string? ImageUrl { get; set; }
 

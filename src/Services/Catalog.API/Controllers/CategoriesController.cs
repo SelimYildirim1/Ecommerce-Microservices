@@ -48,13 +48,27 @@ public class CategoriesController : ControllerBase
         return Ok(categories);
     }
 
-    /// <summary>Slug ile kategori getirir (SEO dostu kategori sayfası).</summary>
+    /// <summary>
+    /// Slug ile kategori getirir (SEO dostu kategori sayfası).
+    /// Guncel slug bulunamazsa LegacySlug uzerinden aranir; donen kayittaki
+    /// slug istenenden farkli oldugu icin vitrin kalici yonlendirme yapar.
+    /// </summary>
     [HttpGet("by-slug/{slug}")]
     public async Task<IActionResult> GetBySlug(string slug, CancellationToken ct)
     {
-        var category = await _context.Categories
+        var category =
+            await FindBySlugAsync(c => c.Slug == slug, ct) ??
+            await FindBySlugAsync(c => c.LegacySlug == slug, ct);
+
+        return category is null ? NotFound() : Ok(category);
+    }
+
+    private Task<StorefrontCategoryDto?> FindBySlugAsync(
+        System.Linq.Expressions.Expression<Func<Entities.Category, bool>> predicate,
+        CancellationToken ct) =>
+        _context.Categories
             .AsNoTracking()
-            .Where(c => c.Slug == slug)
+            .Where(predicate)
             .Select(c => new StorefrontCategoryDto(
                 c.Id,
                 c.Name,
@@ -68,9 +82,6 @@ public class CategoriesController : ControllerBase
                 c.MetaTitle,
                 c.MetaDescription))
             .FirstOrDefaultAsync(ct);
-
-        return category is null ? NotFound() : Ok(category);
-    }
 
     /// <summary>
     /// Kategorinin filtrelenebilir özelliklerini ve mevcut değerlerini döner.
