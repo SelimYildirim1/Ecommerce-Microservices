@@ -5,12 +5,17 @@ import Link from "next/link";
 import Header from "@/components/Header";
 import {
   clearCompare,
+  COMPARE_MAX,
   getCompareItems,
   removeFromCompare,
   type CompareItem,
 } from "@/lib/compare";
 import { formatPrice, resolveMediaUrl } from "@/lib/catalog";
 import { GitCompareArrows, ImageOff, Trash2, X } from "lucide-react";
+
+/** Urun kolonlari, kac urun olursa olsun ayni genislikte kalir.
+ *  Mobilde 180px: etiket kolonuyla birlikte ekrana sigar. */
+const COL_WIDTH = "w-[180px] min-w-[180px] sm:w-[220px] sm:min-w-[200px]";
 
 const ROWS: {
   key: keyof CompareItem | "priceFormatted";
@@ -133,7 +138,7 @@ export default function ComparePage() {
                   {items.map((item) => {
                     const image = item.image ? resolveMediaUrl(item.image) : null;
                     return (
-                      <th key={item.id} className="min-w-[180px] p-4 text-left align-top">
+                      <th key={item.id} className={`${COL_WIDTH} p-4 text-left align-top`}>
                         <div className="relative">
                           <button
                             type="button"
@@ -144,18 +149,19 @@ export default function ComparePage() {
                             <X className="h-3.5 w-3.5" />
                           </button>
                           <Link href={`/products/${item.id}`} className="block">
-                            <div className="mb-3 aspect-[4/3] overflow-hidden rounded-xl bg-gray-50">
+                            {/* Karsilastirmada urunun tamami gorunmeli:
+                                object-contain ile kirpilmadan kareye ortalanir. */}
+                            <div className="mb-3 flex aspect-square w-full max-w-[200px] items-center justify-center overflow-hidden rounded-xl bg-gray-50 p-2">
                               {image ? (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img
                                   src={image}
                                   alt={item.name}
-                                  className="h-full w-full object-cover"
+                                  loading="lazy"
+                                  className="max-h-full max-w-full object-contain"
                                 />
                               ) : (
-                                <div className="flex h-full items-center justify-center">
-                                  <ImageOff className="h-8 w-8 text-gray-300" />
-                                </div>
+                                <ImageOff className="h-8 w-8 text-gray-300" />
                               )}
                             </div>
                             <span className="line-clamp-2 font-semibold text-gray-900 hover:underline">
@@ -166,6 +172,9 @@ export default function ComparePage() {
                       </th>
                     );
                   })}
+                  {/* Artan genisligi emer; boylece az urunde kolonlar
+                      buyuyup gorsel gereksiz sisemez. */}
+                  {items.length < COMPARE_MAX && <th aria-hidden className="w-auto p-0" />}
                 </tr>
               </thead>
               <tbody>
@@ -179,6 +188,7 @@ export default function ComparePage() {
                         {row.render(item)}
                       </td>
                     ))}
+                    {items.length < COMPARE_MAX && <td aria-hidden className="p-0" />}
                   </tr>
                 ))}
               </tbody>
