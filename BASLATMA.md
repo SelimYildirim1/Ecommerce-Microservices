@@ -36,7 +36,7 @@ Detaylı log için:
 | Servis       | Adres                      | Not |
 |--------------|----------------------------|-----|
 | Frontend     | http://localhost:3000      | lite |
-| API Gateway  | http://localhost:8001      | lite (8000 Cursor ile cakismasin diye) |
+| API Gateway  | http://localhost:8001      | lite (8000 baska surec tarafindan tutulabiliyor) |
 | RabbitMQ     | http://localhost:15672     | lite |
 | Admin Panel  | http://localhost:3002      | `src/admin-panel` icinde `npm run dev -- -p 3002` |
 | MailHog      | http://localhost:8025      | lite (giden e-postalar burada birikir, disariya cikmaz) |

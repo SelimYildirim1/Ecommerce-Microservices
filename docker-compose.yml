@@ -346,7 +346,7 @@ services:
       - ReverseProxy__Clusters__promotion-cluster__Destinations__promotion__Address=http://promotion-api:8080
       - ReverseProxy__Clusters__shipping-cluster__Destinations__shipping__Address=http://shipping-api:8080
     ports:
-      # Host 8000 Cursor vb. tarafindan tutulabiliyor; 8001 kullan
+      # Host 8000 baska bir surec tarafindan tutulabiliyor; 8001 kullan
       - "8001:8080"
     depends_on:
       - identity.api
