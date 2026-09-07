@@ -24,9 +24,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import Image from "next/image";
 import { Loader2, Pencil, Plus, Smartphone, Trash2, Upload } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
 /** Mobil banner için önerilen tasarım ölçüsü. */
@@ -51,7 +50,7 @@ const emptyDraft = (sortOrder: number): Draft => ({
 
 function toPayload(draft: Draft): BannerPayload {
   return {
-    title: draft.title?.trim() || "Mobil banner",
+    title: draft.title?.trim() || "",
     subtitle: draft.subtitle?.trim() || null,
     imageUrl: draft.imageUrl.trim(),
     linkUrl: draft.linkUrl?.trim() || null,
@@ -64,6 +63,45 @@ function toPayload(draft: Draft): BannerPayload {
   };
 }
 
+function upsertBanner(list: Banner[] | undefined, saved: Banner): Banner[] {
+  const current = list ?? [];
+  const index = current.findIndex((item) => item.id === saved.id);
+  const next = index >= 0 ? current.map((item, i) => (i === index ? saved : item)) : [...current, saved];
+  return [...next].sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+function BannerThumb({
+  src,
+  uploading = false,
+  className = "",
+  emptyLabel = "",
+}: {
+  src: string;
+  uploading?: boolean;
+  className?: string;
+  emptyLabel?: string;
+}) {
+  return (
+    <div className={`relative overflow-hidden bg-muted ${className}`} style={{ aspectRatio: ASPECT }}>
+      {src ? (
+        // Yeni yüklenen blob/gateway görseli Next/Image beklemeden hemen boyansın.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt="" className="absolute inset-0 h-full w-full object-cover" />
+      ) : emptyLabel ? (
+        <div className="absolute inset-0 flex items-center justify-center px-3 text-center text-xs text-muted-foreground">
+          {emptyLabel}
+        </div>
+      ) : null}
+      {uploading && (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-black/50 text-white">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <span className="text-xs font-medium">Yükleniyor...</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * Mobil cihazlarda gösterilen ana sayfa banner'ı. Web bannerlarından tamamen
  * bağımsızdır; mobilde bu liste boşsa vitrin web bannerlarına geri düşer.
@@ -71,35 +109,73 @@ function toPayload(draft: Draft): BannerPayload {
 export default function MobileBannersPage() {
   const queryClient = useQueryClient();
   const fileInput = useRef<HTMLInputElement>(null);
+  const localPreviewRef = useRef<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [localPreview, setLocalPreview] = useState<string | null>(null);
+  const [listPreviews, setListPreviews] = useState<Record<string, string>>({});
 
   const { data: banners = [], isLoading } = useQuery({
     queryKey: ["mobile-banners"],
     queryFn: () => getBanners(BANNER_PLACEMENT_MOBILE),
+    staleTime: 0,
   });
 
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ["mobile-banners"] });
+  const replaceLocalPreview = (next: string | null) => {
+    if (localPreviewRef.current && localPreviewRef.current !== next) {
+      URL.revokeObjectURL(localPreviewRef.current);
+    }
+    localPreviewRef.current = next;
+    setLocalPreview(next);
+  };
+
+  useEffect(
+    () => () => {
+      if (localPreviewRef.current) URL.revokeObjectURL(localPreviewRef.current);
+    },
+    [],
+  );
+
+  const closeDraft = () => {
+    setDraft(null);
+    replaceLocalPreview(null);
+  };
 
   const save = useMutation({
     mutationFn: (item: Draft) => {
       const payload = toPayload(item);
       return item.id ? updateBanner(item.id, payload) : createBanner(payload);
     },
-    onSuccess: () => {
-      toast.success("Mobil banner kaydedildi. Vitrinde birkaç saniye içinde görünür.");
+    onSuccess: async (saved) => {
+      queryClient.setQueryData<Banner[]>(["mobile-banners"], (old) => upsertBanner(old, saved));
+      if (localPreviewRef.current) {
+        const blob = localPreviewRef.current;
+        localPreviewRef.current = null;
+        setListPreviews((prev) => ({ ...prev, [saved.id]: blob }));
+      }
+      setLocalPreview(null);
       setDraft(null);
-      invalidate();
+      toast.success("Mobil banner kaydedildi.");
+      await queryClient.invalidateQueries({ queryKey: ["mobile-banners"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
   const remove = useMutation({
     mutationFn: (id: string) => deleteBanner(id),
-    onSuccess: () => {
+    onSuccess: (_, id) => {
+      queryClient.setQueryData<Banner[]>(["mobile-banners"], (old) =>
+        (old ?? []).filter((item) => item.id !== id),
+      );
+      setListPreviews((prev) => {
+        const blob = prev[id];
+        if (blob) URL.revokeObjectURL(blob);
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
       toast.success("Mobil banner silindi.");
-      invalidate();
+      queryClient.invalidateQueries({ queryKey: ["mobile-banners"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -107,10 +183,11 @@ export default function MobileBannersPage() {
   const handleUpload = async (file?: File | null) => {
     if (!file || !draft) return;
 
+    replaceLocalPreview(URL.createObjectURL(file));
     setUploading(true);
     try {
       const result = await uploadImage(file);
-      setDraft({ ...draft, imageUrl: result.url });
+      setDraft((current) => (current ? { ...current, imageUrl: result.url } : current));
       toast.success("Görsel yüklendi.");
     } catch (error) {
       toast.error((error as Error).message);
@@ -120,7 +197,8 @@ export default function MobileBannersPage() {
     }
   };
 
-  const openEdit = (banner: Banner) =>
+  const openEdit = (banner: Banner) => {
+    replaceLocalPreview(null);
     setDraft({
       id: banner.id,
       title: banner.title || "",
@@ -134,6 +212,7 @@ export default function MobileBannersPage() {
       startsAt: null,
       endsAt: null,
     });
+  };
 
   return (
     <div className="space-y-6">
@@ -155,7 +234,13 @@ export default function MobileBannersPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>{banners.length} slayt</CardTitle>
-          <Button size="sm" onClick={() => setDraft(emptyDraft(banners.length))}>
+          <Button
+            size="sm"
+            onClick={() => {
+              replaceLocalPreview(null);
+              setDraft(emptyDraft(banners.length));
+            }}
+          >
             <Plus className="mr-2 h-4 w-4" />
             Yeni mobil banner
           </Button>
@@ -171,16 +256,10 @@ export default function MobileBannersPage() {
             <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-5">
               {banners.map((banner) => (
                 <div key={banner.id} className="overflow-hidden rounded-xl border bg-card">
-                  <div className="relative bg-muted" style={{ aspectRatio: ASPECT }}>
-                    {banner.imageUrl ? (
-                      <Image
-                        src={resolveImageUrl(banner.imageUrl)}
-                        alt=""
-                        fill
-                        unoptimized
-                        className="object-cover"
-                      />
-                    ) : null}
+                  <div className="relative">
+                    <BannerThumb
+                      src={listPreviews[banner.id] || resolveImageUrl(banner.imageUrl)}
+                    />
                     <Badge
                       className="absolute left-2 top-2"
                       variant={banner.isActive ? "default" : "secondary"}
@@ -224,7 +303,7 @@ export default function MobileBannersPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={draft !== null} onOpenChange={(open) => !open && setDraft(null)}>
+      <Dialog open={draft !== null} onOpenChange={(open) => !open && closeDraft()}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
@@ -265,20 +344,23 @@ export default function MobileBannersPage() {
                     )}
                   </Button>
                 </div>
-                {draft.imageUrl && (
-                  <div
-                    className="relative mx-auto w-full max-w-[220px] overflow-hidden rounded border bg-muted"
-                    style={{ aspectRatio: ASPECT }}
-                  >
-                    <Image
-                      src={resolveImageUrl(draft.imageUrl)}
-                      alt="Önizleme"
-                      fill
-                      unoptimized
-                      className="object-cover"
-                    />
-                  </div>
-                )}
+                <button
+                  type="button"
+                  className="block w-full"
+                  onClick={() => fileInput.current?.click()}
+                >
+                  <BannerThumb
+                    src={localPreview || resolveImageUrl(draft.imageUrl)}
+                    uploading={uploading}
+                    className="mx-auto w-full max-w-[220px] rounded border"
+                    emptyLabel="Görsel seçin"
+                  />
+                </button>
+                <p className="text-xs text-muted-foreground">
+                  {uploading
+                    ? "Görsel sunucuya yükleniyor; önizleme şimdi görünür."
+                    : "Kutuya tıklayarak görsel seçin. Önizleme dosyayı seçer seçmez çıkar."}
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -364,7 +446,7 @@ export default function MobileBannersPage() {
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDraft(null)}>
+            <Button variant="outline" onClick={closeDraft}>
               Vazgeç
             </Button>
             <Button
@@ -376,9 +458,9 @@ export default function MobileBannersPage() {
                 }
                 save.mutate(draft);
               }}
-              disabled={save.isPending}
+              disabled={save.isPending || uploading}
             >
-              Kaydet
+              {save.isPending ? "Kaydediliyor..." : "Kaydet"}
             </Button>
           </DialogFooter>
         </DialogContent>

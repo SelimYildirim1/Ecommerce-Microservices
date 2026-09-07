@@ -163,7 +163,7 @@ public class AdminCmsController : ControllerBase
 
     private static void Apply(Banner banner, SaveBannerRequest r)
     {
-        banner.Title = string.IsNullOrWhiteSpace(r.Title) ? "Banner" : r.Title.Trim();
+        banner.Title = string.IsNullOrWhiteSpace(r.Title) ? string.Empty : r.Title.Trim();
         banner.Subtitle = r.Subtitle?.Trim();
         banner.ImageUrl = r.ImageUrl.Trim();
         banner.LinkUrl = r.LinkUrl?.Trim();

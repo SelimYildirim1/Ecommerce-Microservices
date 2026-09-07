@@ -657,6 +657,7 @@ export const getBanners = (placement?: string) =>
   fetchAt<Banner[]>(
     CATALOG_ADMIN_API,
     `/cms/banners${placement ? `?placement=${encodeURIComponent(placement)}` : ""}`,
+    { cache: "no-store" },
   );
 
 export const createBanner = (data: BannerPayload) =>

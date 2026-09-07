@@ -1,3 +1,5 @@
+import { getImageProps } from "next/image";
+import { preload } from "react-dom";
 import { resolveMediaUrl } from "@/lib/catalog";
 import {
   BANNER_PLACEMENT_DESKTOP,
@@ -5,7 +7,7 @@ import {
   getBanners,
   type Banner,
 } from "@/lib/cms";
-import HeroSlider, { type HeroSlide } from "./HeroSlider";
+import HeroSlider, { HERO_IMAGE_QUALITY, type HeroSlide } from "./HeroSlider";
 
 const DEFAULT_SLIDE: HeroSlide = {
   id: "default",
@@ -39,11 +41,19 @@ export default async function HeroBanner() {
   const mobileSlides = mobileBanners.length ? toSlides(mobileBanners) : null;
 
   if (!mobileSlides) {
-    return <HeroSlider slides={desktopSlides} variant="desktop" />;
+    return (
+      <>
+        <LcpPreload src={desktopSlides[0]?.imageUrl} media="(min-width: 768px)" width={1920} />
+        <LcpPreload src={desktopSlides[0]?.imageUrl} media="(max-width: 767px)" width={1080} />
+        <HeroSlider slides={desktopSlides} variant="desktop" />
+      </>
+    );
   }
 
   return (
     <>
+      <LcpPreload src={mobileSlides[0]?.imageUrl} media="(max-width: 767px)" width={1080} />
+      <LcpPreload src={desktopSlides[0]?.imageUrl} media="(min-width: 768px)" width={1920} />
       <div className="md:hidden">
         <HeroSlider slides={mobileSlides} variant="mobile" />
       </div>
@@ -52,4 +62,33 @@ export default async function HeroBanner() {
       </div>
     </>
   );
+}
+
+/** Görünen kırılımın ilk slaytını öncelikli indir; gizli varyantı indirmez. */
+function LcpPreload({
+  src,
+  media,
+  width,
+}: {
+  src?: string;
+  media: string;
+  width: number;
+}) {
+  if (!src) return null;
+  const { props } = getImageProps({
+    src,
+    alt: "",
+    width,
+    height: Math.round(width * 0.62),
+    quality: HERO_IMAGE_QUALITY,
+    sizes: "100vw",
+  });
+  preload(props.src, {
+    as: "image",
+    fetchPriority: "high",
+    ...(props.srcSet ? { imageSrcSet: props.srcSet } : {}),
+    ...(props.sizes ? { imageSizes: props.sizes } : {}),
+    media,
+  });
+  return null;
 }

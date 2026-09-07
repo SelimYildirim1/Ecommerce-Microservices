@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import HeroBanner from "@/components/HeroBanner";
@@ -7,6 +8,7 @@ import ProductCard from "@/components/ProductCard";
 import RecentlyViewed from "@/components/RecentlyViewed";
 import SectionHeader from "@/components/SectionHeader";
 import CampaignCountdown from "@/components/CampaignCountdown";
+import { ProductCardSkeletonGrid, ShimmerBar } from "@/components/ProductCardSkeleton";
 import { PackageSearch, RotateCcw, ShieldCheck, Truck } from "lucide-react";
 import { getCategories, pickFeatured } from "@/lib/categories";
 import { getBestsellers, getBrands, getDeals } from "@/lib/brands";
@@ -75,7 +77,54 @@ const SERVICES = [
   { icon: PackageSearch, title: "Aynı Gün Kargo", text: "16:00'ya kadar verilen siparişler" },
 ];
 
-export default async function Home() {
+export default function Home() {
+  return (
+    <div className="bg-white text-gray-900">
+      <Header />
+      <main>
+        <Suspense fallback={<HeroFallback />}>
+          <HeroBanner />
+        </Suspense>
+        <Suspense fallback={<HomeCatalogFallback />}>
+          <HomeCatalog />
+        </Suspense>
+      </main>
+    </div>
+  );
+}
+
+function HeroFallback() {
+  return (
+    <>
+      <ShimmerBar className="aspect-[390/523] max-h-[78vh] w-full md:hidden" />
+      <ShimmerBar className="hidden h-[62vh] min-h-[460px] w-full md:block" />
+    </>
+  );
+}
+
+function HomeCatalogFallback() {
+  return (
+    <>
+      <section className="mx-auto max-w-[1600px] px-6 py-16 md:px-12">
+        <ShimmerBar className="mb-8 h-8 w-48 rounded-lg" />
+        <div className="grid grid-cols-3 gap-x-5 gap-y-8 md:grid-cols-8 md:gap-8">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="flex flex-col items-center gap-3">
+              <ShimmerBar className="h-20 w-20 rounded-full md:h-24 md:w-24" />
+              <ShimmerBar className="h-3 w-16 rounded" />
+            </div>
+          ))}
+        </div>
+      </section>
+      <section className="mx-auto max-w-[1600px] px-6 pb-12 md:px-12">
+        <ShimmerBar className="mb-8 h-8 w-56 rounded-lg" />
+        <ProductCardSkeletonGrid count={8} />
+      </section>
+    </>
+  );
+}
+
+async function HomeCatalog() {
   const [featured, newArrivals, categories, deals, bestsellers, brands, campaigns, coupons] =
     await Promise.all([
       getProducts("Rating", FEATURED_COUNT),
@@ -93,12 +142,7 @@ export default async function Home() {
   const brandList = brands.slice(0, 12);
 
   return (
-    <div className="bg-white text-gray-900">
-      <Header />
-
-      <main>
-        <HeroBanner />
-
+    <>
         <CategoryStrip categories={featuredCategories} />
 
         {coupons.length > 0 && (
@@ -164,12 +208,8 @@ export default async function Home() {
             />
 
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {featured.map((product, i) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  priority={i < 4}
-                />
+              {featured.map((product) => (
+                <ProductCard key={product.id} product={product} />
               ))}
             </div>
           </section>
@@ -260,7 +300,6 @@ export default async function Home() {
         </section>
 
         <RecentlyViewed />
-      </main>
-    </div>
+    </>
   );
 }

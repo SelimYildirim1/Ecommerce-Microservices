@@ -18,6 +18,17 @@ export type HeroVariant = "desktop" | "mobile";
 const AUTOPLAY_MS = 5000;
 const SWIPE_PX = 48;
 
+/** Next/Image varsayılanı; preload URL'leri ile aynı olmalı yoksa LCP iki kez iner. */
+export const HERO_IMAGE_QUALITY = 75;
+
+/** Panelde başlık boş bırakılınca eskiden kaydedilen yer tutucu metinler. */
+function overlayTitle(title?: string | null): string {
+  const t = title?.trim() ?? "";
+  if (!t) return "";
+  if (t.toLocaleLowerCase("tr-TR") === "mobil banner") return "";
+  return t;
+}
+
 /**
  * Görsel indirmesini görünen kırılıma sınırlar: gizli varyantta tarayıcı
  * srcset'ten en küçük adayı seçer, böylece mobilde masaüstü görseli inmez.
@@ -48,6 +59,7 @@ export default function HeroSlider({
   const [index, setIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
+  const [loadRest, setLoadRest] = useState(false);
   const total = slides.length;
 
   const wrapRef = useRef<HTMLElement>(null);
@@ -64,6 +76,11 @@ export default function HeroSlider({
     },
     [total],
   );
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setLoadRest(true), 800);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (total < 2 || dragging) return;
@@ -180,8 +197,9 @@ export default function HeroSlider({
     transform: `translateX(calc(${-index * 100}% + ${dragX}px))`,
   };
 
+  const title = overlayTitle(active.title);
   const hasOverlay = Boolean(
-    active.title?.trim() || active.subtitle?.trim() || active.ctaText?.trim(),
+    title || active.subtitle?.trim() || active.ctaText?.trim(),
   );
 
   return (
@@ -198,26 +216,33 @@ export default function HeroSlider({
         className={`flex h-full ${dragging ? "" : "transition-transform duration-500 ease-out"}`}
         style={trackStyle}
       >
-        {slides.map((slide, i) => (
+        {slides.map((slide, i) => {
+          const nearby = Math.abs(i - index) <= 1 || (index === 0 && i === total - 1) || (index === total - 1 && i === 0);
+          const showImage = i === index || (loadRest && nearby);
+          return (
           <div key={slide.id} className="relative h-full min-w-full shrink-0">
+            {showImage && (
             <Image
               src={slide.imageUrl}
               alt=""
               fill
-              priority={i === 0}
+              loading={i === 0 ? "eager" : "lazy"}
+              quality={HERO_IMAGE_QUALITY}
               draggable={false}
               sizes={VARIANT_SIZES[variant]}
               className="pointer-events-none select-none object-cover object-center"
             />
+            )}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {hasOverlay && (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col items-start gap-2 bg-gradient-to-t from-black/65 via-black/25 to-transparent px-5 pb-16 pt-16 text-white">
-          {active.title?.trim() && (
+          {title && (
             <h2 className="font-display text-2xl leading-tight font-semibold text-balance">
-              {active.title}
+              {title}
             </h2>
           )}
           {active.subtitle?.trim() && (
