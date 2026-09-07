@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
-import { ImageOff, Play, X, ZoomIn } from "lucide-react";
+import { ChevronLeft, ChevronRight, ImageOff, Play, X, ZoomIn } from "lucide-react";
 import { resolveMediaUrl, type ProductImage } from "@/lib/catalog";
 import ShimmerImage from "./ShimmerImage";
 
@@ -37,15 +38,22 @@ export default function ProductGallery({ images, fallbackUrl, alt }: Props) {
   const [active, setActive] = useState(0);
   const [lightbox, setLightbox] = useState(false);
   const [zoom, setZoom] = useState({ x: 50, y: 50, on: false });
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const stageRef = useRef<HTMLDivElement>(null);
 
   const current = items[active] ?? null;
   const isVideo = current?.mediaType === "video";
 
   useEffect(() => {
+    setPortalTarget(document.body);
+  }, []);
+
+  const closeLightbox = () => setLightbox(false);
+
+  useEffect(() => {
     if (!lightbox) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setLightbox(false);
+      if (e.key === "Escape") closeLightbox();
       if (e.key === "ArrowRight") setActive((i) => (i + 1) % Math.max(items.length, 1));
       if (e.key === "ArrowLeft")
         setActive((i) => (i - 1 + items.length) % Math.max(items.length, 1));
@@ -78,9 +86,14 @@ export default function ProductGallery({ images, fallbackUrl, alt }: Props) {
     <div className="space-y-3">
       <div
         ref={stageRef}
-        className="group relative aspect-[4/3] overflow-hidden rounded-2xl border border-gray-100 bg-gray-50"
+        className={`group relative aspect-[4/3] overflow-hidden rounded-2xl border border-gray-100 bg-gray-50 ${
+          current && !isVideo ? "cursor-zoom-in" : ""
+        }`}
         onMouseMove={onMove}
         onMouseLeave={() => setZoom((z) => ({ ...z, on: false }))}
+        onClick={() => {
+          if (current && !isVideo) setLightbox(true);
+        }}
       >
         {current ? (
           isVideo ? (
@@ -110,8 +123,11 @@ export default function ProductGallery({ images, fallbackUrl, alt }: Props) {
         {current && !isVideo && (
           <button
             type="button"
-            onClick={() => setLightbox(true)}
-            className="absolute bottom-3 right-3 z-10 inline-flex items-center gap-1.5 rounded-lg bg-white/90 px-3 py-1.5 text-xs font-medium text-gray-800 opacity-0 shadow-sm transition group-hover:opacity-100"
+            onClick={(e) => {
+              e.stopPropagation();
+              setLightbox(true);
+            }}
+            className="absolute bottom-3 right-3 z-10 inline-flex items-center gap-1.5 rounded-lg bg-white/90 px-3 py-1.5 text-xs font-medium text-gray-800 shadow-sm"
           >
             <ZoomIn className="h-3.5 w-3.5" />
             Büyüt
@@ -147,35 +163,62 @@ export default function ProductGallery({ images, fallbackUrl, alt }: Props) {
         </div>
       )}
 
-      {lightbox && current && !isVideo && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-          onClick={() => setLightbox(false)}
-        >
-          <button
-            type="button"
-            aria-label="Kapat"
-            className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
-            onClick={() => setLightbox(false)}
-          >
-            <X className="h-5 w-5" />
-          </button>
+      {portalTarget &&
+        lightbox &&
+        current &&
+        !isVideo &&
+        createPortal(
           <div
-            className="relative h-[90vh] w-[90vw]"
-            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Görsel önizleme"
+            className="fixed inset-0 z-[200] flex cursor-zoom-out items-center justify-center bg-black/80 p-10"
+            onClick={closeLightbox}
           >
-            <Image
+            <button
+              type="button"
+              aria-label="Kapat"
+              className="absolute right-4 top-4 z-10 rounded-full bg-white p-2.5 text-gray-900 shadow-lg hover:bg-gray-100"
+              onClick={closeLightbox}
+            >
+              <X className="h-5 w-5" />
+            </button>
+            {items.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Önceki görsel"
+                  className="absolute left-4 top-1/2 z-10 -translate-y-1/2 rounded-full bg-white/15 p-2 text-white hover:bg-white/25"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActive((i) => (i - 1 + items.length) % items.length);
+                  }}
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Sonraki görsel"
+                  className="absolute right-4 top-1/2 z-10 -translate-y-1/2 rounded-full bg-white/15 p-2 text-white hover:bg-white/25"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActive((i) => (i + 1) % items.length);
+                  }}
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              </>
+            )}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src={current.url}
               alt={alt}
-              fill
-              sizes="90vw"
-              className="object-contain"
+              className="max-h-[90vh] max-w-[90vw] cursor-default object-contain"
+              onClick={(e) => e.stopPropagation()}
             />
-          </div>
-        </div>
-      )}
+          </div>,
+          portalTarget,
+        )}
     </div>
   );
 }

@@ -1,11 +1,10 @@
 import Link from "next/link";
-import { ImageOff } from "lucide-react";
 import AddToCartButton from "./AddToCartButton";
 import CompareButton from "./CompareButton";
 import FavoriteButton from "./FavoriteButton";
-import ShimmerImage from "./ShimmerImage";
+import ProductCardGallery from "./ProductCardGallery";
 import StarRating from "./StarRating";
-import { formatPrice, getImageUrl, getPrice, type Product } from "@/lib/catalog";
+import { formatPrice, getCardImageUrls, getPrice, type Product } from "@/lib/catalog";
 
 /** Anasayfa, liste ve favori sayfalarinin paylastigi urun karti. */
 export default function ProductCard({
@@ -16,28 +15,19 @@ export default function ProductCard({
   priority?: boolean;
 }) {
   const price = getPrice(product);
-  const imageUrl = getImageUrl(product);
+  const imageUrls = getCardImageUrls(product);
   const rating = product.averageRating ?? 0;
   const reviewCount = product.reviewCount ?? 0;
 
   return (
     <div className="group flex h-full flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
-      <Link href={`/products/${product.id}`} className="relative block">
-        <div className="relative aspect-[4/3] overflow-hidden bg-gray-50">
-          {imageUrl ? (
-            <ShimmerImage
-              src={imageUrl}
-              alt={product.name}
-              priority={priority}
-              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-              className="object-cover group-hover:scale-105"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center">
-              <ImageOff className="h-10 w-10 text-gray-300" />
-            </div>
-          )}
-        </div>
+      <div className="relative">
+        <ProductCardGallery
+          urls={imageUrls}
+          alt={product.name}
+          href={`/products/${product.id}`}
+          priority={priority}
+        />
 
         <FavoriteButton productId={product.id} />
         <CompareButton
@@ -53,7 +43,7 @@ export default function ProductCard({
             averageRating: product.averageRating,
           }}
         />
-      </Link>
+      </div>
 
       <div className="flex flex-1 flex-col p-5">
         {product.brandName && (

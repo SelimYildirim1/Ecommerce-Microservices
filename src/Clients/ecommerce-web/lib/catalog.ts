@@ -198,6 +198,23 @@ export function getImageUrl(product: Product): string | null {
     : null;
 }
 
+/** Kart carousel'i için görseller; birincil önce, videolar hariç. */
+export function getCardImageUrls(product: Product): string[] {
+  const fromGallery = [...(product.images ?? [])]
+    .filter((i) => (i.mediaType || "image") !== "video" && Boolean(i.url))
+    .sort((a, b) => {
+      if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
+      return a.sortOrder - b.sortOrder;
+    })
+    .map((i) => resolveMediaUrl(i.url));
+
+  const unique = [...new Set(fromGallery)];
+  if (unique.length > 0) return unique;
+
+  const fallback = getImageUrl(product);
+  return fallback ? [fallback] : [];
+}
+
 /** Varyant anahtarlari katalogda kod olarak tutulur; vitrinde Turkce etiket gosterilir. */
 const ATTRIBUTE_LABELS: Record<string, string> = {
   color: "Renk",
