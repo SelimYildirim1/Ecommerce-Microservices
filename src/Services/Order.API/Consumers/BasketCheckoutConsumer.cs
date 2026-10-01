@@ -3,6 +3,7 @@ using Core.Shared.Events;
 using Microsoft.EntityFrameworkCore;
 using Order.API.Data;
 using Order.API.Domain.AggregatesModel.OrderAggregate;
+using Order.API.Services.IntegraOps;
 using OrderEntity = Order.API.Entities.Order;
 
 namespace Order.API.Consumers;
@@ -12,15 +13,18 @@ public class BasketCheckoutConsumer : IConsumer<BasketCheckoutEvent>
     private readonly OrderDbContext _dbContext;
     private readonly ILogger<BasketCheckoutConsumer> _logger;
     private readonly IPublishEndpoint _publishEndpoint;
+    private readonly IntegraOpsNotifier _integraOps;
 
     public BasketCheckoutConsumer(
         OrderDbContext dbContext,
         ILogger<BasketCheckoutConsumer> logger,
-        IPublishEndpoint publishEndpoint)
+        IPublishEndpoint publishEndpoint,
+        IntegraOpsNotifier integraOps)
     {
         _dbContext = dbContext;
         _logger = logger;
         _publishEndpoint = publishEndpoint;
+        _integraOps = integraOps;
     }
 
     public async Task Consume(ConsumeContext<BasketCheckoutEvent> context)
@@ -93,6 +97,7 @@ public class BasketCheckoutConsumer : IConsumer<BasketCheckoutEvent>
             shippingCost: msg.ShippingCost);
 
         _dbContext.Orders.Add(order);
+        await _integraOps.TrackAsync(order, IntegraOpsNotifier.OrderCreated, ct: context.CancellationToken);
         await _dbContext.SaveChangesAsync();
 
         _logger.LogInformation(

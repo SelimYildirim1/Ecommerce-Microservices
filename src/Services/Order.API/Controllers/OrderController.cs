@@ -10,6 +10,7 @@ using Order.API.Domain.AggregatesModel.OrderAggregate;
 using Order.API.Hubs;
 using Order.API.Security;
 using Order.API.Services;
+using Order.API.Services.IntegraOps;
 using System.Globalization;
 using System.Text;
 using OrderEntity = Order.API.Entities.Order;
@@ -24,12 +25,15 @@ public class OrderController : ControllerBase
     private readonly OrderDbContext _context;
     private readonly IPublishEndpoint _publishEndpoint;
     private readonly IHubContext<OrderStatusHub> _hubContext;
+    private readonly IntegraOpsNotifier _integraOps;
 
     public OrderController(
         OrderDbContext context,
         IPublishEndpoint publishEndpoint,
-        IHubContext<OrderStatusHub> hubContext)
+        IHubContext<OrderStatusHub> hubContext,
+        IntegraOpsNotifier integraOps)
     {
+        _integraOps = integraOps;
         _context = context;
         _publishEndpoint = publishEndpoint;
         _hubContext = hubContext;
@@ -234,6 +238,8 @@ public class OrderController : ControllerBase
         }
 
         _context.Orders.Add(order);
+        await _integraOps.TrackAsync(order, IntegraOpsNotifier.OrderCreated);
+        await TrackInitialStatusAsync(order);
         await _context.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetOrderDetail), new { orderId = order.Id }, MapToDto(order));
@@ -321,7 +327,10 @@ public class OrderController : ControllerBase
         if (!string.IsNullOrWhiteSpace(request.TrackingNumber))
             order.SetTrackingNumber(request.TrackingNumber);
 
+        var previousStatus = order.OrderStatus;
         order.SetStatus(request.Status);
+        if (previousStatus != request.Status)
+            await _integraOps.TrackStatusChangeAsync(order, previousStatus, request.Status);
         _context.OrderStatusHistories.Add(new Order.API.Entities.OrderStatusHistory
         {
             Id = Guid.NewGuid(),
@@ -404,6 +413,22 @@ public class OrderController : ControllerBase
         }
 
         return query.OrderByDescending(o => o.OrderDate);
+    }
+
+    /// <summary>
+    /// Manuel sipariş stok/ödeme kuyruğundan geçmez; başlangıç durumunun ima ettiği
+    /// adımlar IntegraOps'a burada bildirilir.
+    /// </summary>
+    private async Task TrackInitialStatusAsync(OrderEntity order)
+    {
+        await _integraOps.TrackAsync(order, IntegraOpsNotifier.StockReserved, IntegraOpsNotifier.Skipped);
+
+        if (order.OrderStatus is "Paid" or "Shipped" or "Delivered")
+            await _integraOps.TrackPaidAsync(order);
+        if (order.OrderStatus is "Shipped" or "Delivered")
+            await _integraOps.TrackShippedAsync(order);
+        if (order.OrderStatus == "Delivered")
+            await _integraOps.TrackAsync(order, IntegraOpsNotifier.Delivered);
     }
 
     private async Task<string> GenerateUniqueOrderNumberAsync()

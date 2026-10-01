@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.SignalR;
 using Order.API.Hubs;
 using Order.API.Services;
+using Order.API.Services.IntegraOps;
 
 namespace Order.API.Consumers;
 
@@ -17,12 +18,15 @@ public class PaymentSucceededConsumer : IConsumer<PaymentSucceededEvent>
     private readonly OrderDbContext _context;
     private readonly ILogger<PaymentSucceededConsumer> _logger;
     private readonly IHubContext<OrderStatusHub> _hubContext;
+    private readonly IntegraOpsNotifier _integraOps;
 
     public PaymentSucceededConsumer(
         OrderDbContext context,
         ILogger<PaymentSucceededConsumer> logger,
-        IHubContext<OrderStatusHub> hubContext)
+        IHubContext<OrderStatusHub> hubContext,
+        IntegraOpsNotifier integraOps)
     {
+        _integraOps = integraOps;
         _context = context;
         _logger = logger;
         _hubContext = hubContext;
@@ -51,6 +55,7 @@ public class PaymentSucceededConsumer : IConsumer<PaymentSucceededEvent>
             CreatedAt = DateTime.UtcNow
         });
 
+        await _integraOps.TrackPaidAsync(order, context.CancellationToken);
         await _context.SaveChangesAsync(context.CancellationToken);
         _logger.LogInformation("Sipariş durumu güncellendi. OrderId={OrderId}, OrderNumber={OrderNumber}, {Previous} -> Paid",
             msg.OrderId, order.OrderNumber, previousStatus);

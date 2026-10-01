@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.SignalR;
 using Order.API.Hubs;
 using Order.API.Services;
+using Order.API.Services.IntegraOps;
 
 namespace Order.API.Consumers;
 
@@ -13,12 +14,15 @@ public class StockNotReservedConsumer : IConsumer<StockNotReservedEvent>
     private readonly OrderDbContext _dbContext;
     private readonly ILogger<StockNotReservedConsumer> _logger;
     private readonly IHubContext<OrderStatusHub> _hubContext;
+    private readonly IntegraOpsNotifier _integraOps;
 
     public StockNotReservedConsumer(
         OrderDbContext dbContext,
         ILogger<StockNotReservedConsumer> logger,
-        IHubContext<OrderStatusHub> hubContext)
+        IHubContext<OrderStatusHub> hubContext,
+        IntegraOpsNotifier integraOps)
     {
+        _integraOps = integraOps;
         _dbContext = dbContext;
         _logger = logger;
         _hubContext = hubContext;
@@ -38,6 +42,8 @@ public class StockNotReservedConsumer : IConsumer<StockNotReservedEvent>
         }
 
         order.SetStatus("StockFailed");
+        await _integraOps.TrackAsync(
+            order, IntegraOpsNotifier.StockReserved, IntegraOpsNotifier.Failed, msg.Reason, context.CancellationToken);
         await _dbContext.SaveChangesAsync();
 
         _logger.LogInformation("Sipariş durumu güncellendi: StockFailed. OrderId={OrderId}", msg.OrderId);

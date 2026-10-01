@@ -168,6 +168,13 @@ services:
       - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=OrderDb;User Id=postgres;Password=postgres;
       - RabbitMQ__HostName=rabbitmq
       - OpenTelemetry__Endpoint=http://ecommerce-jaeger:4317
+      # IntegraOps sipariş adımı bildirimi; anahtar .env dosyasından gelir
+      - IntegraOps__Enabled=${INTEGRAOPS_ENABLED:-false}
+      - IntegraOps__BaseUrl=${INTEGRAOPS_BASE_URL:-}
+      - IntegraOps__ApiKey=${INTEGRAOPS_API_KEY:-}
+      - IntegraOps__VipMinTotal=${INTEGRAOPS_VIP_MIN_TOTAL:-0}
+      - IntegraOps__SimulationEnabled=${INTEGRAOPS_SIMULATION_ENABLED:-false}
+      - IntegraOps__SendingPaused=${INTEGRAOPS_SENDING_PAUSED:-false}
     ports:
       - "5059:8080"
     depends_on:

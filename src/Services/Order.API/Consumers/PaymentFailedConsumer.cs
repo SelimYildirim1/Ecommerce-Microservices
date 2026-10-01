@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.SignalR;
 using Order.API.Hubs;
 using Order.API.Services;
+using Order.API.Services.IntegraOps;
 
 namespace Order.API.Consumers;
 
@@ -13,12 +14,15 @@ public class PaymentFailedConsumer : IConsumer<PaymentFailedEvent>
     private readonly OrderDbContext _context;
     private readonly ILogger<PaymentFailedConsumer> _logger;
     private readonly IHubContext<OrderStatusHub> _hubContext;
+    private readonly IntegraOpsNotifier _integraOps;
 
     public PaymentFailedConsumer(
         OrderDbContext context,
         ILogger<PaymentFailedConsumer> logger,
-        IHubContext<OrderStatusHub> hubContext)
+        IHubContext<OrderStatusHub> hubContext,
+        IntegraOpsNotifier integraOps)
     {
+        _integraOps = integraOps;
         _context = context;
         _logger = logger;
         _hubContext = hubContext;
@@ -38,6 +42,8 @@ public class PaymentFailedConsumer : IConsumer<PaymentFailedEvent>
         }
 
         order.SetStatus("Failed");
+        await _integraOps.TrackAsync(
+            order, IntegraOpsNotifier.PaymentCompleted, IntegraOpsNotifier.Failed, message.Reason, context.CancellationToken);
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("Sipariş durumu FAILED olarak güncellendi. OrderId: {OrderId}", message.OrderId);

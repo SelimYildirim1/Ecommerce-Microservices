@@ -18,6 +18,7 @@ public class OrderDbContext : DbContext
     public DbSet<ReturnRequest> ReturnRequests { get; set; }
     public DbSet<ReturnRequestItem> ReturnRequestItems { get; set; }
     public DbSet<OrderStatusHistory> OrderStatusHistories { get; set; }
+    public DbSet<IntegraOpsOutboxMessage> IntegraOpsOutbox { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -93,6 +94,22 @@ public class OrderDbContext : DbContext
                 .WithMany(nameof(OrderEntity.StatusHistory))
                 .HasForeignKey(h => h.OrderId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<IntegraOpsOutboxMessage>(builder =>
+        {
+            builder.ToTable("IntegraOpsOutbox");
+            builder.Property(m => m.Id).ValueGeneratedNever();
+            builder.Property(m => m.TransactionId).IsRequired().HasMaxLength(64);
+            builder.Property(m => m.Step).IsRequired().HasMaxLength(64);
+            builder.Property(m => m.Status).IsRequired().HasMaxLength(20);
+            builder.Property(m => m.Error).HasMaxLength(500);
+            builder.Property(m => m.Group).HasMaxLength(40);
+            builder.Property(m => m.LastError).HasMaxLength(1000);
+            builder.Property(m => m.State).HasConversion<int>();
+
+            builder.HasIndex(m => m.TransactionId);
+            builder.HasIndex(m => new { m.State, m.NextAttemptAt });
         });
 
         modelBuilder.Entity<ReturnRequest>(builder =>

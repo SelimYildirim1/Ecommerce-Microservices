@@ -10,6 +10,7 @@ using Order.API.Hubs;
 using Order.API.Models;
 using Order.API.Security;
 using Order.API.Services;
+using Order.API.Services.IntegraOps;
 
 namespace Order.API.Controllers;
 
@@ -32,13 +33,16 @@ public class ReturnsController : ControllerBase
     private readonly ILogger<ReturnsController> _logger;
     private readonly IPublishEndpoint _publishEndpoint;
     private readonly IHubContext<OrderStatusHub> _hubContext;
+    private readonly IntegraOpsNotifier _integraOps;
 
     public ReturnsController(
         OrderDbContext context,
         ILogger<ReturnsController> logger,
         IPublishEndpoint publishEndpoint,
-        IHubContext<OrderStatusHub> hubContext)
+        IHubContext<OrderStatusHub> hubContext,
+        IntegraOpsNotifier integraOps)
     {
+        _integraOps = integraOps;
         _context = context;
         _logger = logger;
         _publishEndpoint = publishEndpoint;
@@ -367,6 +371,7 @@ public class ReturnsController : ControllerBase
 
         var previousStatus = order.OrderStatus;
         order.SetStatus("Cancelled");
+        await _integraOps.TrackCancelledAsync(order, previousStatus);
         await _context.SaveChangesAsync();
 
         await OrderStatusRealtime.NotifyAsync(_hubContext, order, _logger);

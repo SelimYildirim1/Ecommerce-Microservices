@@ -11,6 +11,7 @@ using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using RabbitMQ.Client;
 using Order.API.Hubs;
+using Order.API.Services.IntegraOps;
 using Prometheus;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -169,6 +170,19 @@ builder.Services.AddDbContext<OrderDbContext>(options =>
             errorCodesToAdd: null);
     });
 });
+// IntegraOps: sipariş adımlarını outbox üzerinden izleme sistemine bildirir
+builder.Services.Configure<IntegraOpsOptions>(builder.Configuration.GetSection(IntegraOpsOptions.SectionName));
+builder.Services.AddScoped<IntegraOpsNotifier>();
+builder.Services.AddHttpClient(IntegraOpsSender.HttpClientName, (sp, client) =>
+{
+    var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<IntegraOpsOptions>>().Value;
+    if (Uri.TryCreate(options.BaseUrl.TrimEnd('/') + "/", UriKind.Absolute, out var baseUri))
+        client.BaseAddress = baseUri;
+    client.DefaultRequestHeaders.Add("X-API-Key", options.ApiKey);
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+builder.Services.AddHostedService<IntegraOpsSender>();
+
 // 3. MediatR (CQRS için)
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
 
@@ -180,6 +194,7 @@ builder.Services.AddMassTransit(config =>
     config.AddConsumer<PaymentSucceededConsumer>();
     config.AddConsumer<PaymentFailedConsumer>();
     config.AddConsumer<StockNotReservedConsumer>();
+    config.AddConsumer<StockReservedConsumer>();
 
     // B) RabbitMQ Bağlantısı
     config.UsingRabbitMq((context, _config) =>
@@ -221,7 +236,13 @@ builder.Services.AddMassTransit(config =>
         {
             e.ConfigureConsumer<StockNotReservedConsumer>(context);
         });
-        
+
+        // Payment.API aynı olayı "stock-reserved-queue" ile dinler; kuyruk paylaşılmamalı
+        _config.ReceiveEndpoint("order-stock-reserved-queue", e =>
+        {
+            e.ConfigureConsumer<StockReservedConsumer>(context);
+        });
+
         // Diğer consumer'lar için otomatik endpoint
         _config.ConfigureEndpoints(context);
     });
