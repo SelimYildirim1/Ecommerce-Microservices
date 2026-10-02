@@ -233,7 +233,7 @@ export default function OrdersPage() {
                         <TableCell>
                           <div className="flex items-center justify-end gap-1">
                             <select
-                              className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
+                              className="h-8 w-36 rounded-md border border-input bg-transparent px-2 text-xs"
                               value={
                                 ASSIGNABLE_STATUSES.includes(order.orderStatus)
                                   ? order.orderStatus
@@ -253,7 +253,7 @@ export default function OrdersPage() {
                               ))}
                             </select>
 
-                            {CANCELLABLE.includes(order.orderStatus) && (
+                            {CANCELLABLE.includes(order.orderStatus) ? (
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -265,6 +265,9 @@ export default function OrdersPage() {
                               >
                                 <Ban className="h-4 w-4 text-destructive" />
                               </Button>
+                            ) : (
+                              // Iptal edilemeyen satirlarda da ayni yer ayrilir; menuler hizali kalir
+                              <span className="size-9 shrink-0" aria-hidden />
                             )}
                           </div>
                         </TableCell>
