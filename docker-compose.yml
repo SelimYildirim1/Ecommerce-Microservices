@@ -7,10 +7,10 @@ services:
     restart: unless-stopped
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD .env icinde tanimli olmali}
       - "POSTGRES_DB=CatalogDb"
     ports:
-      - "5434:5432"
+      - "127.0.0.1:5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
       - ./scripts/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh
@@ -35,7 +35,7 @@ services:
       retries: 5
       start_period: 5s
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     networks:
       - ecommerce-network
 
@@ -55,8 +55,8 @@ services:
       - RABBITMQ_DEFAULT_USER=guest
       - RABBITMQ_DEFAULT_PASS=guest
     ports:
-      - "15672:15672" # Yönetim Paneli
-      - "5672:5672" # Mesajlaşma Portu
+      - "127.0.0.1:15672:15672" # Yönetim Paneli
+      - "127.0.0.1:5672:5672" # Mesajlaşma Portu
     networks:
       - ecommerce-network
 
@@ -78,10 +78,10 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       # Docker içinde Postgres'e 'localhost' diyemeyiz, 'postgres-db' demeliyiz
-      - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=IdentityDb;User Id=postgres;Password=postgres;
+      - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=IdentityDb;User Id=postgres;Password=${POSTGRES_PASSWORD};
       - OpenTelemetry__Endpoint=http://ecommerce-jaeger:4317
     ports:
-      - "5001:8080"
+      - "127.0.0.1:5001:8080"
     depends_on:
       postgres-db:
         condition: service_healthy
@@ -103,11 +103,11 @@ services:
       start_period: 60s
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=CatalogDb;User Id=postgres;Password=postgres;
+      - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=CatalogDb;User Id=postgres;Password=${POSTGRES_PASSWORD};
       - RabbitMQ__HostName=rabbitmq
       - OpenTelemetry__Endpoint=http://ecommerce-jaeger:4317
     ports:
-      - "5002:8080"
+      - "127.0.0.1:5002:8080"
     volumes:
       # Yuklenen urun gorselleri container yeniden olusturulunca kaybolmasin
       - catalog_uploads:/app/wwwroot/uploads
@@ -142,7 +142,7 @@ services:
       - RabbitMQ__HostName=rabbitmq
       - OpenTelemetry__Endpoint=http://ecommerce-jaeger:4317
     ports:
-      - "5038:8080"
+      - "127.0.0.1:5038:8080"
     depends_on:
       - redis-db
       - rabbitmq
@@ -165,7 +165,7 @@ services:
       start_period: 60s
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=OrderDb;User Id=postgres;Password=postgres;
+      - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=OrderDb;User Id=postgres;Password=${POSTGRES_PASSWORD};
       - RabbitMQ__HostName=rabbitmq
       - OpenTelemetry__Endpoint=http://ecommerce-jaeger:4317
       # IntegraOps sipariş adımı bildirimi; anahtar .env dosyasından gelir
@@ -176,7 +176,7 @@ services:
       - IntegraOps__SimulationEnabled=${INTEGRAOPS_SIMULATION_ENABLED:-false}
       - IntegraOps__SendingPaused=${INTEGRAOPS_SENDING_PAUSED:-false}
     ports:
-      - "5059:8080"
+      - "127.0.0.1:5059:8080"
     depends_on:
       postgres-db:
         condition: service_healthy
@@ -200,9 +200,9 @@ services:
       start_period: 60s
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=PromotionDb;User Id=postgres;Password=postgres;
+      - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=PromotionDb;User Id=postgres;Password=${POSTGRES_PASSWORD};
     ports:
-      - "5070:8080"
+      - "127.0.0.1:5070:8080"
     depends_on:
       postgres-db:
         condition: service_healthy
@@ -224,9 +224,9 @@ services:
       start_period: 60s
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=ShippingDb;User Id=postgres;Password=postgres;
+      - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=ShippingDb;User Id=postgres;Password=${POSTGRES_PASSWORD};
     ports:
-      - "5071:8080"
+      - "127.0.0.1:5071:8080"
     depends_on:
       postgres-db:
         condition: service_healthy
@@ -251,7 +251,7 @@ services:
       - RabbitMQ__HostName=rabbitmq
       - OpenTelemetry__Endpoint=http://ecommerce-jaeger:4317
     ports:
-      - "5277:8080"
+      - "127.0.0.1:5277:8080"
     depends_on:
       - rabbitmq
     networks:
@@ -264,8 +264,8 @@ services:
     container_name: ecommerce-mailhog
     restart: unless-stopped
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
     networks:
       - ecommerce-network
 
@@ -288,9 +288,9 @@ services:
       - OpenTelemetry__Endpoint=http://ecommerce-jaeger:4317
       - Smtp__Host=mailhog
       - Smtp__Port=1025
-      - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=NotificationDb;User Id=postgres;Password=postgres;
+      - ConnectionStrings__DefaultConnection=Server=postgres-db;Port=5432;Database=NotificationDb;User Id=postgres;Password=${POSTGRES_PASSWORD};
     ports:
-      - "5300:8080"
+      - "127.0.0.1:5300:8080"
     depends_on:
       - rabbitmq
       - mailhog
@@ -318,7 +318,7 @@ services:
       - Services__IdentityApi=http://identity-api:8080
       - OpenTelemetry__Endpoint=http://ecommerce-jaeger:4317
     ports:
-      - "5100:8080"
+      - "127.0.0.1:5100:8080"
     depends_on:
       - identity.api
       - catalog.api
@@ -354,7 +354,7 @@ services:
       - ReverseProxy__Clusters__shipping-cluster__Destinations__shipping__Address=http://shipping-api:8080
     ports:
       # Host 8000 baska bir surec tarafindan tutulabiliyor; 8001 kullan
-      - "8001:8080"
+      - "127.0.0.1:8001:8080"
     depends_on:
       - identity.api
       - catalog.api
@@ -394,7 +394,7 @@ services:
       # SSR fetch'ler container içinden gateway'e gider
       - INTERNAL_API_URL=${INTERNAL_API_URL:-http://api-gateway:8080}
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       - api.gateway
     networks:
@@ -443,8 +443,8 @@ services:
       - ACCEPT_EULA=Y
       - SEQ_FIRSTRUN_ADMINPASSWORD=kRd4gGetLSybzd6
     ports:
-      - "5340:80"
-      - "5341:5341"
+      - "127.0.0.1:5340:80"
+      - "127.0.0.1:5341:5341"
     networks:
       - ecommerce-network
 
@@ -458,9 +458,9 @@ services:
     environment:
       - COLLECTOR_OTLP_ENABLED=true
     ports:
-      - "16686:16686"   # Jaeger UI
-      - "4317:4317"     # OTLP gRPC
-      - "4318:4318"     # OTLP HTTP
+      - "127.0.0.1:16686:16686"   # Jaeger UI
+      - "127.0.0.1:4317:4317"     # OTLP gRPC
+      - "127.0.0.1:4318:4318"     # OTLP HTTP
     networks:
       - ecommerce-network
 
@@ -480,7 +480,7 @@ services:
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--web.enable-lifecycle'
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     networks:
       - ecommerce-network
     depends_on:
@@ -503,7 +503,7 @@ services:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana_data:/var/lib/grafana
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
     networks:
       - ecommerce-network
     depends_on:
@@ -541,7 +541,7 @@ services:
       - portainer_data:/data
     ports:
       - "127.0.0.1:9000:9000"
-      - "9443:9443"
+      - "127.0.0.1:9443:9443"
     networks:
       - ecommerce-network
 
